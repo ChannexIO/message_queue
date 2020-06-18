@@ -1,6 +1,35 @@
 # MessageQueue
 
-**TODO: Add description**
+## Usage
+
+### Configuration
+
+```elixir
+# in config/config.exs
+
+config :message_queue,
+  app_name: my_app,
+  adapter: :rabbitmq,
+  rpc_modules: [SampleModule]
+```
+
+* `app_name` - name of your application
+* `adapter` - kind of adapter. Possible values: `:rabbitmq`, `:sandbox`
+* `rpc_modules` - modules are available for remote call
+
+### Consumer
+
+```elixir
+use MessageQueue.Consumer
+
+def start_link(_opts) do
+  GenServer.start_link(__MODULE__, %{queue: "queue", prefetch_count: 1}, name: __MODULE__)
+end
+
+def handle_message(payload, meta, state) do
+  ...
+end
+```
 
 ## Installation
 
@@ -10,12 +39,7 @@ by adding `message_queue` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:message_queue, "~> 0.1.0"}
+    {:message_queue, github: "ChannexIO/message_queue"}
   ]
 end
 ```
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/message_queue](https://hexdocs.pm/message_queue).
-

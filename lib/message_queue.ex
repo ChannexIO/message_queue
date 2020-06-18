@@ -1,18 +1,34 @@
 defmodule MessageQueue do
-  @moduledoc """
-  Documentation for MessageQueue.
-  """
+  @moduledoc false
 
-  @doc """
-  Hello world.
+  @spec producer() :: module()
+  def producer, do: adapter(Producer)
 
-  ## Examples
+  @spec consumer() :: module()
+  def consumer, do: adapter(Consumer)
 
-      iex> MessageQueue.hello()
-      :world
+  @spec rpc_server() :: module()
+  def rpc_server, do: adapter(RPCServer)
 
-  """
-  def hello do
-    :world
+  @spec rpc_client() :: module()
+  def rpc_client, do: adapter(RPCClient)
+
+  @spec rpc_queue() :: binary()
+  def rpc_queue do
+    app_name = Application.get_env(:message_queue, :app_name)
+    "rpc_#{app_name}"
+  end
+
+  @spec rpc_modules() :: list()
+  def rpc_modules do
+    Application.get_env(:message_queue, :rpc_modules)
+  end
+
+  defp adapter(module) do
+    case Application.get_env(:message_queue, :adapter) do
+      :rabbitmq -> MessageQueue.Adapters.RabbitMQ
+      _ -> MessageQueue.Adapters.Sandbox
+    end
+    |> Module.concat(module)
   end
 end
