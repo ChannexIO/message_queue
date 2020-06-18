@@ -21,7 +21,7 @@ defmodule MessageQueue do
 
   @spec rpc_modules() :: list()
   def rpc_modules do
-    Application.get_env(:message_queue, :rpc_modules)
+    Application.get_env(:message_queue, :rpc_modules, [])
   end
 
   defp adapter(module) do
