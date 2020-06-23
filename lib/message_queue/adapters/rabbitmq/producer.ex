@@ -46,7 +46,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   def handle_call({:publish, message, queue, options}, _, conn) do
     with {:ok, channel} <- Channel.open(conn),
          {:ok, routing_key} <- get_routing_key(queue),
-         {:ok, exchange} <- get_exchange_name(channel, queue),
+         {:ok, %{exchange: exchange, channel: channel}} <- get_exchange_name(channel, queue),
          :ok <- Confirm.select(channel),
          {:ok, encoded_message} <- Jason.encode(message),
          :ok <-
@@ -72,19 +72,36 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   defp get_exchange_name(channel, queues) when is_list(queues) do
     exchange = "amq.fanout"
 
-    for queue <- queues do
-      Queue.declare(channel, queue, durable: true)
-      Queue.bind(channel, queue, exchange, routing_key: "")
+    Enum.reduce_while(queues, channel, fn queue, channel ->
+      case queue_declare_and_bind(channel, queue, exchange, "") do
+        {:ok, %{channel: channel}} -> {:cont, channel}
+        error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, channel} -> {:ok, %{channel: channel, exchange: exchange}}
+      error -> error
     end
-
-    {:ok, exchange}
   end
 
   defp get_exchange_name(channel, queue) do
     exchange = "amq.direct"
-    Queue.declare(channel, queue, durable: true)
-    Queue.bind(channel, queue, exchange, routing_key: queue)
-    {:ok, exchange}
+
+    queue_declare_and_bind(channel, queue, exchange, queue)
+  end
+
+  defp queue_declare_and_bind(%{conn: conn} = channel, queue, exchange, routing_key) do
+    with {:ok, _} <- Queue.declare(channel, queue, durable: true, passive: true),
+         :ok <- Queue.bind(channel, queue, exchange, routing_key: routing_key) do
+      {:ok, %{exchange: exchange, channel: channel}}
+    end
+  catch
+    :exit, _ ->
+      with {:ok, channel} <- Channel.open(conn),
+           {:ok, _} <- Queue.declare(channel, queue, durable: true),
+           :ok <- Queue.bind(channel, queue, exchange, routing_key: queue) do
+        {:ok, %{exchange: exchange, channel: channel}}
+      end
   end
 
   defp close_channel(channel) do
