@@ -25,16 +25,16 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
 
   @impl true
   def handle_continue(:connect, state) do
-    host = System.fetch_env!("AMQP_CONNECTION_URL")
+    connection = MessageQueue.connection()
 
-    with {:ok, conn} <- Connection.open(host),
+    with {:ok, conn} <- Connection.open(connection),
          {:ok, channel} <- Channel.open(conn),
          {:ok, %{queue: queue}} <- Queue.declare(channel, "", exclusive: true),
          {:ok, _} <- Basic.consume(channel, queue, nil, no_ack: true) do
       {:noreply, %{channel: channel, queue: queue, calls: %{}}, :hibernate}
     else
       {:error, _} ->
-        Logger.error("Failed to connect #{host}. Reconnecting later...")
+        Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
         Process.sleep(@reconnect_interval)
         {:noreply, state, {:continue, :connect}}
     end

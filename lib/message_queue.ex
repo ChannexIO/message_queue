@@ -24,6 +24,11 @@ defmodule MessageQueue do
     Application.get_env(:message_queue, :rpc_modules, [])
   end
 
+  @spec connection() :: keyword()
+  def connection do
+    Application.get_env(:message_queue, :connection)
+  end
+
   defp adapter(module) do
     case Application.get_env(:message_queue, :adapter) do
       :rabbitmq -> MessageQueue.Adapters.RabbitMQ
