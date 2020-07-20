@@ -16,12 +16,12 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
 
       @impl true
       def handle_continue(:connect, %{options: options} = state) do
-        host = System.fetch_env!("AMQP_CONNECTION_URL")
+        connection = MessageQueue.connection()
         prefetch_count = Map.get(options, :prefetch_count, 1)
         queue = Map.get(options, :queue)
         queue_options = Map.get(options, :queue_options, [])
 
-        with {:ok, conn} <- Connection.open(host),
+        with {:ok, conn} <- Connection.open(connection),
              {:ok, channel} <- Channel.open(conn),
              :ok <- Basic.qos(channel, prefetch_count: prefetch_count),
              {:ok, _} <- Queue.declare(channel, queue, queue_options ++ [durable: true]),
@@ -30,7 +30,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
           {:noreply, %{channel: channel, options: options}}
         else
           {:error, _} ->
-            Logger.error("Failed to connect #{host}. Reconnecting later...")
+            Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
             Process.sleep(@reconnect_interval)
             {:noreply, state, {:continue, :connect}}
         end

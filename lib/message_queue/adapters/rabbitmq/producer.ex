@@ -23,15 +23,15 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
 
   @impl true
   def handle_continue(:connect, state) do
-    host = System.fetch_env!("AMQP_CONNECTION_URL")
+    connection = MessageQueue.connection()
 
-    case Connection.open(host) do
+    case Connection.open(connection) do
       {:ok, conn} ->
         Process.monitor(conn.pid)
         {:noreply, conn}
 
       {:error, _} ->
-        Logger.error("Failed to connect #{host}. Reconnecting later...")
+        Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
         Process.sleep(@reconnect_interval)
         {:noreply, state, {:continue, :connect}}
     end
