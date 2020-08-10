@@ -67,6 +67,18 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
         {:noreply, state, :hibernate}
       end
 
+      @impl true
+      def terminate(_, %{channel: channel} = _state) do
+        if is_pid(channel[:pid]) and Process.alive?(channel[:pid]) do
+          Channel.close(channel)
+        end
+
+        :normal
+      end
+
+      @impl true
+      def terminate(_, _), do: :normal
+
       def handle_message(payload, meta, state), do: :ok
 
       defp ack(%{channel: channel} = state, %{delivery_tag: tag} = _meta, options \\ []) do

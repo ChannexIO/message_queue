@@ -38,7 +38,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCServer do
   end
 
   @impl true
-  def handle_info({:EXIT, _, :normal}, _state) do
+  def handle_info({:EXIT, _, :normal}, _channel) do
     {:stop, :normal, nil}
   end
 
@@ -63,5 +63,14 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCServer do
     Basic.publish(channel, "", meta.reply_to, result, correlation_id: meta.correlation_id)
     Basic.ack(channel, meta.delivery_tag)
     {:noreply, channel, :hibernate}
+  end
+
+  @impl true
+  def terminate(_, channel) do
+    if is_pid(channel[:pid]) and Process.alive?(channel[:pid]) do
+      Channel.close(channel)
+    end
+
+    :normal
   end
 end
