@@ -79,7 +79,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
       end
     end)
     |> case do
-      {:ok, channel} -> {:ok, %{channel: channel, exchange: exchange}}
+      %Channel{} = channel -> {:ok, %{channel: channel, exchange: exchange}}
       error -> error
     end
   end
