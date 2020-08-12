@@ -88,6 +88,18 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
     end
   end
 
+  @impl true
+  def terminate(_, %{channel: channel} = _state) do
+    if is_pid(channel[:pid]) and Process.alive?(channel[:pid]) do
+      Channel.close(channel)
+    end
+
+    :normal
+  end
+
+  @impl true
+  def terminate(_, _), do: :normal
+
   defp rpc_reply(reply, correlation_id, %{calls: calls} = state) do
     case Map.pop(calls, correlation_id) do
       {nil, _} ->
