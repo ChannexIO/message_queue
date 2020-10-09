@@ -46,17 +46,11 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   def handle_call({:publish, message, queue, options}, _, conn) do
     with {:ok, channel} <- Channel.open(conn),
          {:ok, routing_key} <- get_routing_key(queue),
-         {:ok, %{exchange: exchange, channel: channel}} <- get_exchange_name(channel, queue),
+         {:ok, %{exchange: exchange, channel: channel}} <-
+           get_exchange_name(channel, queue, options),
          :ok <- Confirm.select(channel),
          {:ok, encoded_message} <- Jason.encode(message),
-         :ok <-
-           Basic.publish(
-             channel,
-             exchange,
-             routing_key,
-             encoded_message,
-             options
-           ),
+         :ok <- Basic.publish(channel, exchange, routing_key, encoded_message, options),
          {:published, true} <- {:published, Confirm.wait_for_confirms(channel)} do
       spawn(fn -> close_channel(channel) end)
       {:reply, :ok, conn}
@@ -69,7 +63,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   defp get_routing_key(queues) when is_list(queues), do: {:ok, ""}
   defp get_routing_key(queue), do: {:ok, queue}
 
-  defp get_exchange_name(channel, queues) when is_list(queues) do
+  defp get_exchange_name(channel, queues, _options) when is_list(queues) do
     exchange = "amq.fanout"
 
     Enum.reduce_while(queues, channel, fn queue, channel ->
@@ -84,7 +78,15 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
     end
   end
 
-  defp get_exchange_name(channel, queue) do
+  defp get_exchange_name(channel, "" = queue, options) do
+    if match?([_ | _], options[:headers]) do
+      {:ok, %{exchange: "amq.headers", channel: channel}}
+    else
+      queue_declare_and_bind(channel, queue, "amq.direct", queue)
+    end
+  end
+
+  defp get_exchange_name(channel, queue, _options) do
     exchange = "amq.direct"
 
     queue_declare_and_bind(channel, queue, exchange, queue)
