@@ -20,11 +20,13 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
         prefetch_count = Map.get(options, :prefetch_count, 1)
         queue = Map.get(options, :queue)
         queue_options = Map.get(options, :queue_options, [])
+        binding_options = Map.get(options, :bindings, [])
 
         with {:ok, conn} <- Connection.open(connection),
              {:ok, channel} <- Channel.open(conn),
              :ok <- Basic.qos(channel, prefetch_count: prefetch_count),
              {:ok, _} <- Queue.declare(channel, queue, queue_options ++ [durable: true]),
+             :ok <- binding_if_needs(channel, queue, binding_options),
              {:ok, _} <- Basic.consume(channel, queue) do
           Process.monitor(channel.pid)
           {:noreply, %{channel: channel, options: options}}
@@ -87,6 +89,17 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
 
       defp reject(%{channel: channel} = state, %{delivery_tag: tag} = _meta, options \\ []) do
         Basic.reject(channel, tag, options)
+      end
+
+      defp binding_if_needs(_, _, []), do: :ok
+
+      defp binding_if_needs(channel, queue, bindings) do
+        Enum.reduce_while(bindings, :ok, fn {exchange, options}, result ->
+          case Queue.bind(channel, queue, exchange, options) do
+            :ok -> {:cont, :ok}
+            error -> {:halt, error}
+          end
+        end)
       end
 
       defoverridable handle_message: 3
