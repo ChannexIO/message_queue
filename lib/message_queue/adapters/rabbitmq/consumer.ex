@@ -1,5 +1,27 @@
 defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
-  @moduledoc false
+  @moduledoc """
+  A RabbitMQ consumer for MessageQueue.
+
+  ## Options
+
+  * `:queue` - Required. The name of the queue
+  * `:prefetch_count` - Optional. Prefetch options used by the RabbitMQ client. By default is 1
+  * `:queue_options` - Optional. Queue options used by RabbitMQ client. For example:
+    %{queue_options: [
+      durable: false, arguments: [
+        {"x-dead-letter-exchange", :longstr, ""},
+        {"x-dead-letter-routing-key", :longstr, "tasks.errors"}
+      ]
+    ]
+
+    `durable: true` will be added automatically. 
+  * `:bindings. Optional. a list of bindings for the `:queue`. This option
+    allows you to bind the queue to one or more exchanges. Each binding is a tuple
+    `{exchange_name, binding_options}` where so that the queue will be bound
+    to `exchange_name` through `AMQP.Queue.bind/4` using `binding_options` as
+    the options. Bindings are idempotent so you can bind the same queue to the
+    same exchange multiple times.
+  """
 
   defmacro __using__(_opts) do
     quote do
