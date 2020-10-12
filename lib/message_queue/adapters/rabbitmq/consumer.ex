@@ -1,5 +1,27 @@
 defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
-  @moduledoc false
+  @moduledoc """
+  A RabbitMQ consumer for MessageQueue.
+
+  ## Options
+
+  * `:queue` - Required. The name of the queue
+  * `:prefetch_count` - Optional. Prefetch options used by the RabbitMQ client. By default is 1
+  * `:queue_options` - Optional. Queue options used by RabbitMQ client. For example:
+    %{queue_options: [
+      durable: false, arguments: [
+        {"x-dead-letter-exchange", :longstr, ""},
+        {"x-dead-letter-routing-key", :longstr, "tasks.errors"}
+      ]
+    ]
+
+    `durable: true` will be added automatically. 
+  * `:bindings. Optional. a list of bindings for the `:queue`. This option
+    allows you to bind the queue to one or more exchanges. Each binding is a tuple
+    `{exchange_name, binding_options}` where so that the queue will be bound
+    to `exchange_name` through `AMQP.Queue.bind/4` using `binding_options` as
+    the options. Bindings are idempotent so you can bind the same queue to the
+    same exchange multiple times.
+  """
 
   defmacro __using__(_opts) do
     quote do
@@ -20,11 +42,13 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
         prefetch_count = Map.get(options, :prefetch_count, 1)
         queue = Map.get(options, :queue)
         queue_options = Map.get(options, :queue_options, [])
+        binding_options = Map.get(options, :bindings, [])
 
         with {:ok, conn} <- Connection.open(connection),
              {:ok, channel} <- Channel.open(conn),
              :ok <- Basic.qos(channel, prefetch_count: prefetch_count),
              {:ok, _} <- Queue.declare(channel, queue, queue_options ++ [durable: true]),
+             :ok <- binding_if_needs(channel, queue, binding_options),
              {:ok, _} <- Basic.consume(channel, queue) do
           Process.monitor(channel.pid)
           {:noreply, %{channel: channel, options: options}}
@@ -87,6 +111,17 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
 
       defp reject(%{channel: channel} = state, %{delivery_tag: tag} = _meta, options \\ []) do
         Basic.reject(channel, tag, options)
+      end
+
+      defp binding_if_needs(_, _, []), do: :ok
+
+      defp binding_if_needs(channel, queue, bindings) do
+        Enum.reduce_while(bindings, :ok, fn {exchange, options}, result ->
+          case Queue.bind(channel, queue, exchange, options) do
+            :ok -> {:cont, :ok}
+            error -> {:halt, error}
+          end
+        end)
       end
 
       defoverridable handle_message: 3
