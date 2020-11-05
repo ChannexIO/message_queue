@@ -90,7 +90,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
 
   @impl true
   def terminate(_, %{channel: channel} = _state) do
-    if is_pid(channel[:pid]) and Process.alive?(channel[:pid]) do
+    if is_pid(channel.pid) and Process.alive?(channel.pid) do
       Channel.close(channel)
     end
 
