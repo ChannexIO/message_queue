@@ -77,7 +77,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
 
       @impl true
       def handle_info({:basic_cancel, %{consumer_tag: _}}, state) do
-        {:stop, :normal, state, :hibernate}
+        {:stop, :normal, state}
       end
 
       @impl true

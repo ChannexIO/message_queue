@@ -49,7 +49,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCServer do
 
   @impl true
   def handle_info({:basic_cancel, %{consumer_tag: _}}, channel) do
-    {:stop, :normal, channel, :hibernate}
+    {:stop, :normal, channel}
   end
 
   @impl true
