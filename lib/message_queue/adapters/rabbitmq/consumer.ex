@@ -14,13 +14,17 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
       ]
     ]
 
-    `durable: true` will be added automatically. 
+    `durable: true` will be added automatically.
   * `:bindings. Optional. a list of bindings for the `:queue`. This option
     allows you to bind the queue to one or more exchanges. Each binding is a tuple
     `{exchange_name, binding_options}` where so that the queue will be bound
     to `exchange_name` through `AMQP.Queue.bind/4` using `binding_options` as
     the options. Bindings are idempotent so you can bind the same queue to the
     same exchange multiple times.
+  * `:after_connect` - a function that takes the AMQP channel that the consumer is
+    connected to and can run arbitrary setup. This is useful for declaring complex
+    RabbitMQ topologies with possibly multiple queues, bindings, or exchanges. This
+    function can return `:ok` if everything went well or `{:error, reason}`.
   """
 
   defmacro __using__(_opts) do
@@ -43,9 +47,11 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
         queue = Map.get(options, :queue)
         queue_options = Map.get(options, :queue_options, [])
         binding_options = Map.get(options, :bindings, [])
+        after_connect = Map.get(options, :after_connect, fn _channel -> :ok end)
 
         with {:ok, conn} <- Connection.open(connection),
              {:ok, channel} <- Channel.open(conn),
+             :ok <- call_after_connect(after_connect, channel),
              :ok <- Basic.qos(channel, prefetch_count: prefetch_count),
              {:ok, _} <- Queue.declare(channel, queue, queue_options ++ [durable: true]),
              :ok <- binding_if_needs(channel, queue, binding_options),
@@ -122,6 +128,19 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
             error -> {:halt, error}
           end
         end)
+      end
+
+      defp call_after_connect(after_connect, channel) do
+        case after_connect.(channel) do
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            {:error, reason}
+
+          other ->
+            raise "unexpected return value from the :after_connect function: #{inspect(other)}"
+        end
       end
 
       defoverridable handle_message: 3
