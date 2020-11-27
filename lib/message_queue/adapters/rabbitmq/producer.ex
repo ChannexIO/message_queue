@@ -44,65 +44,65 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
 
   @impl true
   def handle_call({:publish, message, queue, options}, _, conn) do
-    with {:ok, channel} <- Channel.open(conn),
-         {:ok, routing_key} <- get_routing_key(queue),
-         {:ok, %{exchange: exchange, channel: channel}} <-
-           get_exchange_name(channel, queue, options),
-         :ok <- Confirm.select(channel),
-         {:ok, encoded_message} <- Jason.encode(message),
-         :ok <- Basic.publish(channel, exchange, routing_key, encoded_message, options),
-         {:published, true} <- {:published, Confirm.wait_for_confirms(channel)} do
-      spawn(fn -> close_channel(channel) end)
-      {:reply, :ok, conn}
-    else
-      {:published, _} -> {:reply, {:error, :not_published}, conn}
-      error -> {:reply, error, conn}
+    case Channel.open(conn) do
+      {:ok, channel} ->
+        with {:ok, exchange} <- get_exchange_name(queue, options),
+             {:ok, routing_key} <- declare_and_bind_queue(exchange, channel, queue, options),
+             :ok <- Confirm.select(channel),
+             {:ok, encoded_message} <- Jason.encode(message),
+             :ok <- Basic.publish(channel, exchange, routing_key, encoded_message, options),
+             {:published, true} <- {:published, Confirm.wait_for_confirms(channel)} do
+          spawn(fn -> close_channel(channel) end)
+          {:reply, :ok, conn}
+        else
+          {:published, _} ->
+            spawn(fn -> close_channel(channel) end)
+            {:reply, {:error, :not_published}, conn}
+
+          error ->
+            spawn(fn -> close_channel(channel) end)
+            {:reply, error, conn}
+        end
+
+      {:error, error} ->
+        {:reply, error, conn}
     end
   end
 
-  defp get_routing_key(queues) when is_list(queues), do: {:ok, ""}
-  defp get_routing_key(queue), do: {:ok, queue}
+  defp get_exchange_name(queues, option) when is_list(queues), do: {:ok, "amq.fanout"}
 
-  defp get_exchange_name(channel, queues, _options) when is_list(queues) do
-    exchange = "amq.fanout"
+  defp get_exchange_name("" = queue, options) do
+    if match?([_ | _], options[:headers]), do: {:ok, "amq.headers"}, else: {:ok, "amq.direct"}
+  end
 
-    Enum.reduce_while(queues, channel, fn queue, channel ->
-      case queue_declare_and_bind(channel, queue, exchange, "") do
-        {:ok, %{channel: channel}} -> {:cont, channel}
+  defp get_exchange_name(_queue, _options), do: {:ok, "amq.direct"}
+
+  defp declare_and_bind_queue("amq.headers", _channel, _queue, _options), do: {:ok, ""}
+
+  defp declare_and_bind_queue(exchange, channel, queues, options) when is_list(queues) do
+    Enum.reduce_while(queues, {:ok, ""}, fn queue, acc ->
+      case declare_and_bind_queue(exchange, channel, queue, options) do
+        {:ok, _routing_key} -> {:cont, acc}
         error -> {:halt, error}
       end
     end)
-    |> case do
-      %Channel{} = channel -> {:ok, %{channel: channel, exchange: exchange}}
-      error -> error
-    end
   end
 
-  defp get_exchange_name(channel, "" = queue, options) do
-    if match?([_ | _], options[:headers]) do
-      {:ok, %{exchange: "amq.headers", channel: channel}}
-    else
-      queue_declare_and_bind(channel, queue, "amq.direct", queue)
-    end
-  end
+  defp declare_and_bind_queue(exchange, channel, queue, options) do
+    options = Keyword.put_new(options, :durable, true)
 
-  defp get_exchange_name(channel, queue, _options) do
-    exchange = "amq.direct"
-
-    queue_declare_and_bind(channel, queue, exchange, queue)
-  end
-
-  defp queue_declare_and_bind(%{conn: conn} = channel, queue, exchange, routing_key) do
-    with {:ok, _} <- Queue.declare(channel, queue, durable: true, passive: true),
+    with {:ok, %{queue: queue}} <- Queue.declare(channel, queue, [{:passive, true} | options]),
+         routing_key <- Keyword.get(options, :routing_key, queue),
          :ok <- Queue.bind(channel, queue, exchange, routing_key: routing_key) do
-      {:ok, %{exchange: exchange, channel: channel}}
+      {:ok, routing_key}
     end
   catch
     :exit, _ ->
-      with {:ok, channel} <- Channel.open(conn),
-           {:ok, _} <- Queue.declare(channel, queue, durable: true),
-           :ok <- Queue.bind(channel, queue, exchange, routing_key: queue) do
-        {:ok, %{exchange: exchange, channel: channel}}
+      with {:ok, channel} <- Channel.open(channel.conn),
+           {:ok, %{queue: queue}} <- Queue.declare(channel, queue, options),
+           routing_key <- Keyword.get(options, :routing_key, queue),
+           :ok <- Queue.bind(channel, queue, exchange, routing_key: routing_key) do
+        {:ok, routing_key}
       end
   end
 
