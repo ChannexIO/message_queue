@@ -38,6 +38,11 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
         Process.sleep(@reconnect_interval)
         {:noreply, state, {:continue, :connect}}
     end
+  catch
+    :exit, error ->
+      Logger.error("RabbitMQ error: #{inspect(error)}. Reconnecting later...")
+      Process.sleep(@reconnect_interval)
+      {:noreply, state, {:continue, :connect}}
   end
 
   @impl true
