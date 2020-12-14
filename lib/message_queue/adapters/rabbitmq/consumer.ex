@@ -42,14 +42,13 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
 
       @impl true
       def handle_continue(:connect, %{options: options} = state) do
-        connection = MessageQueue.connection()
         prefetch_count = Map.get(options, :prefetch_count, 1)
         queue = Map.get(options, :queue)
         queue_options = Map.get(options, :queue_options, [])
         binding_options = Map.get(options, :bindings, [])
         after_connect = Map.get(options, :after_connect, fn _channel -> :ok end)
 
-        with {:ok, conn} <- Connection.open(connection),
+        with {:ok, conn} <- MessageQueue.get_connection(),
              {:ok, channel} <- Channel.open(conn),
              :ok <- call_after_connect(after_connect, channel),
              :ok <- Basic.qos(channel, prefetch_count: prefetch_count),
@@ -59,7 +58,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
           Process.monitor(channel.pid)
           {:noreply, %{channel: channel, options: options}}
         else
-          {:error, _} ->
+          _error ->
             Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
             Process.sleep(@reconnect_interval)
             {:noreply, state, {:continue, :connect}}
@@ -79,6 +78,11 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
       @impl true
       def handle_info({:EXIT, _, :normal}, _state) do
         {:stop, :normal, nil}
+      end
+
+      @impl true
+      def handle_info({_ref, {:ok, _connection}}, state) do
+        {:noreply, state}
       end
 
       @impl true
