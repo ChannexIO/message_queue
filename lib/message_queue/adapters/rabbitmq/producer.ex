@@ -119,7 +119,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   end
 
   defp declare_and_bind(exchange, channel, queues, options) when is_list(queues) do
-    Enum.reduce_while(queues, {:ok, %{routing_key: "", channel: channel}}, fn queue, acc ->
+    Enum.reduce_while(queues, {:ok, %{routing_key: "", channel: channel}}, fn queue, _acc ->
       case declare_and_bind(exchange, channel, queue, options) do
         {:ok, _} = result -> {:cont, result}
         error -> {:halt, error}
@@ -145,6 +145,8 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   end
 
   defp redeclare_and_bind_queue(exchange, channel, queue, options) do
+    options = Keyword.put_new(options, :durable, true)
+
     case Channel.open(channel.conn) do
       {:ok, channel} ->
         with {:ok, exchange_type} <- get_exchange_type(queue, options),
