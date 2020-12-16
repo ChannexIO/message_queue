@@ -2,7 +2,7 @@ defmodule MessageQueue.MixProject do
   use Mix.Project
 
   @name "MessageQueue"
-  @version "0.1.9"
+  @version "0.2.0"
   @repo_url "https://github.com/ChannexIO/message_queue"
 
   def project do
