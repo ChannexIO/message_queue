@@ -15,4 +15,10 @@ defmodule MessageQueue.Producer do
   def publish(message, queue, options \\ []) do
     MessageQueue.producer().publish(message, queue, options)
   end
+
+  @spec initialize(queue :: list() | binary(), options :: map()) ::
+          :ok | Basic.error() | {:error, :not_published} | {:error, any()}
+  def initialize(queue, options \\ []) do
+    MessageQueue.producer().initialize(queue, options)
+  end
 end

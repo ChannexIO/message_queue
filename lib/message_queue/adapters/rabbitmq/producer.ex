@@ -11,6 +11,10 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
 
+  def initialize(queue, options) do
+    GenServer.call(__MODULE__, {:initialize, queue, options})
+  end
+
   def publish(message, queue, options) do
     GenServer.call(__MODULE__, {:publish, message, queue, options})
   end
@@ -40,6 +44,18 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   @impl true
   def handle_info({:DOWN, _, :process, _pid, reason}, _) do
     {:stop, {:connection_lost, reason}, nil}
+  end
+
+  @impl true
+  def handle_call({:initialize, queue, options}, _, conn) do
+    case prepare_publish(conn, queue, options) do
+      {:ok, %{channel: channel}} ->
+        spawn(fn -> close_channel(channel) end)
+        {:reply, :ok, conn}
+
+      error ->
+        {:reply, error, conn}
+    end
   end
 
   @impl true
