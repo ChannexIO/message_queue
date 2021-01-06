@@ -29,6 +29,11 @@ defmodule MessageQueue do
     Application.get_env(:message_queue, :connection)
   end
 
+  @spec publish(term(), String.t() | list(String.t()), keyword()) :: :ok | term()
+  def publish(message, queue, options) do
+    producer().publish(message, queue, options)
+  end
+
   defp adapter(module) do
     case Application.get_env(:message_queue, :adapter) do
       :rabbitmq -> MessageQueue.Adapters.RabbitMQ
