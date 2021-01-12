@@ -4,6 +4,11 @@ defmodule MessageQueue.Application do
   use Application
 
   def start(_type, _args) do
+    :logger.add_primary_filter(
+      :ignore_rabbitmq_progress_reports,
+      {&:logger_filters.domain/2, {:stop, :equal, [:progress]}}
+    )
+
     children = [
       MessageQueue.Producer,
       MessageQueue.RPCClient,
