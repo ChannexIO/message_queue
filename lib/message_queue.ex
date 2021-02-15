@@ -37,7 +37,8 @@ defmodule MessageQueue do
   defp adapter(module) do
     case Application.get_env(:message_queue, :adapter) do
       :rabbitmq -> MessageQueue.Adapters.RabbitMQ
-      _ -> MessageQueue.Adapters.Sandbox
+      :sandbox -> MessageQueue.Adapters.Sandbox
+      adapter -> adapter
     end
     |> Module.concat(module)
   end

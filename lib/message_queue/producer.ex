@@ -3,6 +3,8 @@ defmodule MessageQueue.Producer do
   Module for publishing message to queue and keeping of connection
   """
 
+  @behaviour MessageQueue.Adapters.Producer
+
   def child_spec(opts) do
     %{
       id: MessageQueue.producer(),
@@ -10,8 +12,6 @@ defmodule MessageQueue.Producer do
     }
   end
 
-  @spec publish(message :: term(), queue :: list() | binary(), options :: map()) ::
-          :ok | Basic.error() | {:error, :not_published} | {:error, any()}
   def publish(message, queue, options \\ []) do
     MessageQueue.producer().publish(message, queue, options)
   end

@@ -3,6 +3,8 @@ defmodule MessageQueue.RPCClient do
     Module for remote procedure calling
   """
 
+  @behaviour MessageQueue.Adapters.RPCClient
+
   def child_spec(opts) do
     %{
       id: MessageQueue.rpc_client(),
@@ -10,7 +12,6 @@ defmodule MessageQueue.RPCClient do
     }
   end
 
-  @spec call(module :: module | binary(), function :: binary() | atom, args :: list()) :: :ok
   def call(module, function, args) do
     MessageQueue.rpc_client().call(module, function, args)
   end
