@@ -23,7 +23,7 @@ An adapter is a set of instructions for how to communicate with a specific servi
 
 MessageQueue provides adapters for use RabbitMQ and for testing. To use these adapters, declare them in the environment configuration.
 
-You can create new adapters for any environment by implementing the `MessageQueue.Adapters.Producer`, `MessageQueue.Adapters.Consumer`, `MessageQueue.Adapters.RPCServer` or `MessageQueue.Adapters.RPCCclient` behaviour.
+You can create new adapters for any environment by implementing the `MessageQueue.Adapters.Producer`, `MessageQueue.Adapters.Consumer`, `MessageQueue.Adapters.RPCServer`, `MessageQueue.Adapters.RPCCclient` or `MessageQueue.Adapters.Connection` behaviour.
 
 ```elixir
 config :message_queue,
@@ -41,6 +41,7 @@ MessageQueue.CustomLocalAdapter.Producer
 MessageQueue.CustomLocalAdapter.Consumer
 MessageQueue.CustomLocalAdapter.RPCServer
 MessageQueue.CustomLocalAdapter.RPCClient
+MessageQueue.CustomLocalAdapter.Connection
 ```
 
 ### Consumer

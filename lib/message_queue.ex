@@ -1,6 +1,10 @@
 defmodule MessageQueue do
   @moduledoc false
 
+  defdelegate publish(message, queue, options \\ []), to: MessageQueue.Producer
+  defdelegate rpc_call(module, function, args), to: MessageQueue.RPCClient, as: :call
+  defdelegate get_connection, to: MessageQueue.Connection, as: :get
+
   @spec producer() :: module()
   def producer, do: adapter(Producer)
 
@@ -12,6 +16,9 @@ defmodule MessageQueue do
 
   @spec rpc_client() :: module()
   def rpc_client, do: adapter(RPCClient)
+
+  @spec connection() :: module()
+  def connection, do: adapter(Connection)
 
   @spec rpc_queue() :: binary()
   def rpc_queue do
@@ -25,13 +32,8 @@ defmodule MessageQueue do
   end
 
   @spec connection() :: keyword()
-  def connection do
+  def connection_details do
     Application.get_env(:message_queue, :connection)
-  end
-
-  @spec publish(term(), String.t() | list(String.t()), keyword()) :: :ok | term()
-  def publish(message, queue, options) do
-    producer().publish(message, queue, options)
   end
 
   defp adapter(module) do

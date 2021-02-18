@@ -17,15 +17,12 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
 
   @impl true
   def init(state) do
-    Process.flag(:trap_exit, true)
     {:ok, state, {:continue, :connect}}
   end
 
   @impl true
   def handle_continue(:connect, state) do
-    connection = MessageQueue.connection()
-
-    case Connection.open(connection) do
+    case MessageQueue.get_connection() do
       {:ok, conn} ->
         Process.monitor(conn.pid)
         {:noreply, conn}
@@ -40,6 +37,11 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   @impl true
   def handle_info({:DOWN, _, :process, _pid, reason}, _) do
     {:stop, {:connection_lost, reason}, nil}
+  end
+
+  @impl true
+  def handle_info({_ref, {:ok, _connection}}, state) do
+    {:noreply, state}
   end
 
   @impl true

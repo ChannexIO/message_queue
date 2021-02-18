@@ -19,21 +19,19 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
 
   @impl true
   def init(state) do
-    Process.flag(:trap_exit, true)
     {:ok, state, {:continue, :connect}}
   end
 
   @impl true
   def handle_continue(:connect, state) do
-    connection = MessageQueue.connection()
-
-    with {:ok, conn} <- Connection.open(connection),
+    with {:ok, conn} <- MessageQueue.get_connection(),
          {:ok, channel} <- Channel.open(conn),
          {:ok, %{queue: queue}} <- Queue.declare(channel, "", exclusive: true),
          {:ok, _} <- Basic.consume(channel, queue, nil, no_ack: true) do
+      Process.monitor(channel.pid)
       {:noreply, %{channel: channel, queue: queue, calls: %{}}, :hibernate}
     else
-      {:error, _} ->
+      _error ->
         Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
         Process.sleep(@reconnect_interval)
         {:noreply, state, {:continue, :connect}}
@@ -46,8 +44,13 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
   end
 
   @impl true
-  def handle_info({:EXIT, _, :normal}, _state) do
-    {:stop, :normal, nil}
+  def handle_info({:DOWN, _, :process, _pid, reason}, _) do
+    {:stop, {:connection_lost, reason}, nil}
+  end
+
+  @impl true
+  def handle_info({_ref, {:ok, _connection}}, state) do
+    {:noreply, state}
   end
 
   @impl true
