@@ -2,6 +2,7 @@ defmodule MessageQueue do
   @moduledoc false
 
   defdelegate publish(message, queue, options \\ []), to: MessageQueue.Producer
+  defdelegate delete_queue(queue, options \\ []), to: MessageQueue.Producer
   defdelegate rpc_call(module, function, args), to: MessageQueue.RPCClient, as: :call
   defdelegate get_connection, to: MessageQueue.Connection, as: :get
 

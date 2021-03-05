@@ -11,4 +11,5 @@ defmodule MessageQueue.Adapters.Sandbox.Producer do
   def init(state), do: {:ok, state}
 
   def publish(_message, _queue, _options), do: :ok
+  def delete_queue(_queue, _options), do: :ok
 end
