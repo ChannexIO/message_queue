@@ -13,8 +13,9 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCServer do
   end
 
   @impl true
-  def init(state) do
-    {:ok, state, {:continue, :connect}}
+  def init(_state) do
+    IO.warn("not implemented")
+    :ignore
   end
 
   @impl true
