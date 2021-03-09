@@ -3,8 +3,8 @@ defmodule MessageQueue.RPCClient.Response do
     Module for prepare response form remote client
   """
 
-  @spec prepare(payload :: binary) :: term()
-  def prepare(payload) do
+  @spec prepare!(payload :: binary) :: term()
+  def prepare!(payload) do
     payload
     |> Jason.decode!()
     |> case do

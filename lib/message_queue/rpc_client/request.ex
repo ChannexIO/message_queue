@@ -4,20 +4,16 @@ defmodule MessageQueue.RPCClient.Request do
   """
 
   @spec prepare(tuple) :: {:ok, map()} | {:error, term()}
-  def prepare({module, function, args} = _command) do
-    %{
-      payload:
-        encode_command(%{
-          module: module,
-          function: function,
-          args: args
-        }),
-      correlation_id: get_correlation_id()
-    }
+  def prepare({service_name, function, args} = _command) do
+    command = %{service_name: service_name, function: function, args: args}
+
+    with {:ok, payload} <- encode_command(command) do
+      {:ok, %{payload: payload, correlation_id: get_correlation_id()}}
+    end
   end
 
   defp encode_command(command) do
-    Jason.encode!(command)
+    Jason.encode(command)
   end
 
   defp get_correlation_id do
