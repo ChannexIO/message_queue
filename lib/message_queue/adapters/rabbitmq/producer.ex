@@ -15,6 +15,10 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
     GenServer.call(__MODULE__, {:publish, message, queue, options})
   end
 
+  def delete_queue(queue, options) do
+    GenServer.call(__MODULE__, {:delete_queue, queue, options})
+  end
+
   @impl true
   def init(state) do
     {:ok, state, {:continue, :connect}}
@@ -55,6 +59,16 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
 
       error ->
         {:reply, error, conn}
+    end
+  end
+
+  @impl true
+  def handle_call({:delete_queue, queue, options}, _, conn) do
+    with {:ok, channel} <- Channel.open(conn),
+         {:ok, _} <- Queue.delete(channel, queue, options) do
+      {:reply, :ok, conn}
+    else
+      error -> {:reply, error, conn}
     end
   end
 
