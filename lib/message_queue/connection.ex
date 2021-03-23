@@ -3,8 +3,6 @@ defmodule MessageQueue.Connection do
   Module for keeping connection to message broker
   """
 
-  @behaviour MessageQueue.Adapters.Connection
-
   def child_spec(opts) do
     %{
       id: MessageQueue.connection(),

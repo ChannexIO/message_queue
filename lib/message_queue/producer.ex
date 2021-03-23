@@ -3,8 +3,6 @@ defmodule MessageQueue.Producer do
   Module for publishing message to queue and keeping of connection
   """
 
-  @behaviour MessageQueue.Adapters.Producer
-
   def child_spec(opts) do
     %{
       id: MessageQueue.producer(),

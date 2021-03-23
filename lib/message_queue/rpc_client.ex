@@ -3,8 +3,6 @@ defmodule MessageQueue.RPCClient do
     Module for remote procedure calling
   """
 
-  @behaviour MessageQueue.Adapters.RPCClient
-
   def child_spec(opts) do
     %{
       id: MessageQueue.rpc_client(),

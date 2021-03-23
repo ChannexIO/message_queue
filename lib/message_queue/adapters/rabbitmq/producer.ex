@@ -1,6 +1,8 @@
 defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   @moduledoc false
 
+  @behaviour MessageQueue.Adapters.Producer
+
   @reconnect_interval 10_000
 
   use AMQP
@@ -11,10 +13,12 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
 
+  @impl true
   def publish(message, queue, options) do
     GenServer.call(__MODULE__, {:publish, message, queue, options})
   end
 
+  @impl true
   def delete_queue(queue, options) do
     GenServer.call(__MODULE__, {:delete_queue, queue, options})
   end
