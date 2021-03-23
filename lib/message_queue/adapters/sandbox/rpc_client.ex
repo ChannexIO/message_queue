@@ -1,6 +1,8 @@
 defmodule MessageQueue.Adapters.Sandbox.RPCClient do
   @moduledoc false
 
+  @behaviour MessageQueue.Adapters.RPCClient
+
   use GenServer
 
   def start_link(_) do
@@ -10,5 +12,6 @@ defmodule MessageQueue.Adapters.Sandbox.RPCClient do
   @impl true
   def init(state), do: {:ok, state}
 
+  @impl true
   def call(_module, _function, _args), do: :ok
 end

@@ -1,6 +1,8 @@
 defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
   @moduledoc false
 
+  @behaviour MessageQueue.Adapters.RPCClient
+
   @reconnect_interval :timer.seconds(10)
   @call_timeout :timer.seconds(35)
 
@@ -13,6 +15,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__, hibernate_after: 15_000)
   end
 
+  @impl true
   def call(service_name, function, args) do
     GenServer.call(__MODULE__, {:exec, {service_name, function, args}}, @call_timeout)
   end
