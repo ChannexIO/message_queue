@@ -29,7 +29,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
   def handle_continue(:connect, state) do
     with {:ok, conn} <- MessageQueue.get_connection(),
          {:ok, channel} <- Channel.open(conn),
-         {:ok, %{queue: queue}} <- Queue.declare(channel, "", exclusive: true),
+         {:ok, %{queue: queue}} <- Queue.declare(channel, "", auto_delete: true),
          {:ok, _} <- Basic.consume(channel, queue, nil, no_ack: true) do
       Process.monitor(channel.pid)
       {:noreply, %{channel: channel, queue: queue, calls: %{}}}
