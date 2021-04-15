@@ -8,6 +8,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   use AMQP
   use GenServer
   require Logger
+  alias MessageQueue.Utils
 
   def start_link(_) do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
@@ -15,12 +16,12 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
 
   @impl true
   def publish(message, queue, options) do
-    GenServer.call(__MODULE__, {:publish, message, queue, options})
+    GenServer.call(__MODULE__, {:publish, message, queue, options}, Utils.call_timeout())
   end
 
   @impl true
   def delete_queue(queue, options) do
-    GenServer.call(__MODULE__, {:delete_queue, queue, options})
+    GenServer.call(__MODULE__, {:delete_queue, queue, options}, Utils.call_timeout())
   end
 
   @impl true
