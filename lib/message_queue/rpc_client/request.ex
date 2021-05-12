@@ -13,7 +13,7 @@ defmodule MessageQueue.RPCClient.Request do
   end
 
   defp encode_command(command) do
-    {:ok, :erlang.term_to_binary(command)}
+    Jason.encode(command)
   end
 
   defp get_correlation_id do
