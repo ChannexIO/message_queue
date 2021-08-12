@@ -37,6 +37,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
 
       @impl true
       def init(options) do
+        Process.flag(:trap_exit, true)
         {:ok, %{options: options}, {:continue, :connect}}
       end
 
