@@ -14,4 +14,7 @@ defmodule MessageQueue.Adapters.Sandbox.RPCClient do
 
   @impl true
   def call(_module, _function, _args), do: :ok
+
+  @impl true
+  def cast(_module, _function, _args), do: :ok
 end
