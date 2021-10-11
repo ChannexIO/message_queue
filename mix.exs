@@ -2,7 +2,7 @@ defmodule MessageQueue.MixProject do
   use Mix.Project
 
   @name "MessageQueue"
-  @version "0.3.6"
+  @version "0.4.0"
   @repo_url "https://github.com/ChannexIO/message_queue"
 
   def project do
@@ -27,7 +27,7 @@ defmodule MessageQueue.MixProject do
 
   defp deps do
     [
-      {:amqp, "~> 1.6"},
+      {:amqp, "~> 2.0"},
       {:jason, "~> 1.2"}
     ]
   end

@@ -11,6 +11,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
   alias MessageQueue.RPCClient.{Request, Response}
   require Logger
 
+  @doc false
   def start_link(_) do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__, hibernate_after: 15_000)
   end
@@ -18,6 +19,11 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
   @impl true
   def call(service_name, function, args) do
     GenServer.call(__MODULE__, {:exec, {service_name, function, args}}, @call_timeout)
+  end
+
+  @impl true
+  def cast(service_name, function, args) do
+    GenServer.cast(__MODULE__, {:exec, {service_name, function, args}})
   end
 
   @impl true
@@ -79,12 +85,23 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
 
   @impl true
   def handle_call({:exec, command}, from, state) do
-    with {:ok, %{payload: payload, correlation_id: correlation_id}} <- Request.prepare(command),
+    with {:ok, %{payload: payload, correlation_id: correlation_id}} <-
+           Request.prepare_call(command),
          timeout_ref <- schedule_timeout_error(correlation_id),
-         :ok <- publish(command, payload, correlation_id, state) do
+         :ok <- publish(command, payload, state, correlation_id) do
       {:noreply, %{state | calls: Map.put(state.calls, correlation_id, {from, timeout_ref})}}
     else
       error -> {:reply, error, state}
+    end
+  end
+
+  @impl true
+  def handle_cast({:exec, command}, state) do
+    with {:ok, %{payload: payload}} <- Request.prepare_cast(command),
+         :ok <- publish(command, payload, state) do
+      {:noreply, state}
+    else
+      _ -> {:noreply, state}
     end
   end
 
@@ -99,7 +116,11 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
 
   def terminate(_, _), do: :normal
 
-  defp publish({service_name, _function, _args}, payload, correlation_id, state) do
+  defp publish({service_name, _function, _args}, payload, state) do
+    Basic.publish(state.channel, "rpc", "", payload, headers: [{service_name, true}])
+  end
+
+  defp publish({service_name, _function, _args}, payload, state, correlation_id) do
     Basic.publish(state.channel, "rpc", "", payload,
       headers: [{service_name, true}],
       reply_to: state.queue,
