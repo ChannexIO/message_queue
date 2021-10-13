@@ -5,7 +5,9 @@ defmodule MessageQueue do
   defdelegate delete_queue(queue, options \\ []), to: MessageQueue.Producer
   defdelegate rpc_call(module, function, args), to: MessageQueue.RPCClient, as: :call
   defdelegate rpc_cast(module, function, args), to: MessageQueue.RPCClient, as: :cast
-  defdelegate get_connection, to: MessageQueue.Connection, as: :get
+  defdelegate get_connection(), to: MessageQueue.Connection, as: :get
+  defdelegate encode_data(data, opts \\ []), to: MessageQueue.Message, as: :encode
+  defdelegate decode_data(data, opts \\ []), to: MessageQueue.Message, as: :decode
 
   @spec producer() :: module()
   def producer, do: adapter(Producer)

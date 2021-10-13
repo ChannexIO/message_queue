@@ -1,7 +1,9 @@
 defmodule MessageQueue.RPCClient.Request do
   @moduledoc """
-    Module for construct payload for remote call
+  Module for construct payload for remote call
   """
+
+  alias MessageQueue.Message
 
   @spec prepare_call(tuple) :: {:ok, map()}
   def prepare_call(command) do
@@ -26,7 +28,7 @@ defmodule MessageQueue.RPCClient.Request do
   end
 
   defp encode_command(command) do
-    {:ok, :erlang.term_to_binary(command)}
+    Message.encode(command, type: :ext_binary)
   end
 
   defp get_correlation_id do

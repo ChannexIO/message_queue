@@ -8,7 +8,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   use AMQP
   use GenServer
   require Logger
-  alias MessageQueue.Utils
+  alias MessageQueue.{Message, Utils}
 
   def start_link(_) do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
@@ -88,7 +88,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
 
   defp publish_message(channel, message, exchange, routing_key, options) do
     with :ok <- Confirm.select(channel),
-         {:ok, encoded_message} <- Jason.encode(message),
+         {:ok, encoded_message} <- encode_message(message, options),
          :ok <- Basic.publish(channel, exchange, routing_key, encoded_message, options),
          {:published, true} <- {:published, Confirm.wait_for_confirms(channel)} do
       :ok
@@ -181,6 +181,13 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
       error ->
         error
     end
+  end
+
+  defp encode_message(message, opts) do
+    Message.encode(message,
+      type: opts[:message_type],
+      parser_opts: opts[:message_parser_opts] || []
+    )
   end
 
   defp close_channel(channel) do
