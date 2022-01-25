@@ -7,7 +7,7 @@ defmodule MessageQueue.Message do
 
   defstruct data: nil,
             parser_opts: [],
-            type: :json
+            type: :ext_binary
 
   @type t() :: %__MODULE__{}
 
@@ -29,6 +29,22 @@ defmodule MessageQueue.Message do
   Decodes the data according to its type using a parser.
   """
   @spec decode(data(), opts()) :: {:ok, decoded_message()} | {:error, parsing_error()}
+  def decode(<<131>> <> _ = data, opts) do
+    opts
+    |> put_in([:type], :ext_binary)
+    |> put_in([:data], data)
+    |> new()
+    |> decode()
+  end
+
+  def decode(data, opts) when is_binary(data) do
+    opts
+    |> put_in([:type], :json)
+    |> put_in([:data], data)
+    |> new()
+    |> decode()
+  end
+
   def decode(data, opts) do
     opts |> put_in([:data], data) |> new() |> decode()
   end

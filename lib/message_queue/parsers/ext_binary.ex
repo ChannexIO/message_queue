@@ -8,7 +8,7 @@ defmodule MessageQueue.Parsers.ExtBinary do
 
   @doc false
   def decode(data, opts) when is_list(opts) do
-    {:ok, non_executable_binary_to_term(data, opts)}
+    {:ok, non_executable_binary_to_term(data, Keyword.delete(opts, :keys))}
   rescue
     error -> {:error, Exception.message(error)}
   end
