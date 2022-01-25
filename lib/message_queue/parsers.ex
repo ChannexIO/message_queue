@@ -15,5 +15,5 @@ defmodule MessageQueue.Parsers do
 
   defp get_parser(%{type: :json}), do: Json
   defp get_parser(%{type: :ext_binary}), do: ExtBinary
-  defp get_parser(%{type: _}), do: Json
+  defp get_parser(%{type: _}), do: ExtBinary
 end
