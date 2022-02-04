@@ -5,8 +5,8 @@ defmodule MessageQueue.Parsers.CompressedJson do
 
   @doc false
   def encode(data, opts) do
-    case data |> Jason.encode(opts) |> :zlib.compress() do
-      {:ok, encoded_data} -> {:ok, encoded_data}
+    case Jason.encode(data, opts) do
+      {:ok, encoded_data} -> {:ok, :zlib.compress(encoded_data)}
       {:error, error} -> {:error, Exception.message(error)}
     end
   end
