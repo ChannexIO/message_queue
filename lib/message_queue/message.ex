@@ -7,7 +7,7 @@ defmodule MessageQueue.Message do
 
   defstruct data: nil,
             parser_opts: [],
-            type: :ext_binary
+            type: :compressed_json
 
   @type t() :: %__MODULE__{}
 
@@ -32,6 +32,14 @@ defmodule MessageQueue.Message do
   def decode(<<131>> <> _ = data, opts) do
     opts
     |> put_in([:type], :ext_binary)
+    |> put_in([:data], data)
+    |> new()
+    |> decode()
+  end
+
+  def decode(<<120, 156>> <> _ = data, opts) do
+    opts
+    |> put_in([:type], :compressed_json)
     |> put_in([:data], data)
     |> new()
     |> decode()
