@@ -4,10 +4,7 @@ defmodule MessageQueue.Producer do
   """
 
   def child_spec(opts) do
-    %{
-      id: MessageQueue.producer(),
-      start: {MessageQueue.producer(), :start_link, [opts]}
-    }
+    MessageQueue.producer().child_spec(opts)
   end
 
   def publish(message, queue, options) do
