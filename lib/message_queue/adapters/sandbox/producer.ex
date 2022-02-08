@@ -5,6 +5,15 @@ defmodule MessageQueue.Adapters.Sandbox.Producer do
 
   use GenServer
 
+  @doc false
+  def child_spec(opts) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [opts]}
+    }
+  end
+
+  @doc false
   def start_link(_) do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
