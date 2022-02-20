@@ -28,12 +28,15 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
 
   @impl GenServer
   def handle_continue(:connect, state) do
-    case MessageQueue.get_connection() do
-      {:ok, conn} ->
-        ProcessRegistry.register(:producer_workers, nil)
-        Process.monitor(conn.pid)
-        {:noreply, conn}
-
+    with {:ok, conn} <- MessageQueue.get_connection(),
+         {:ok, chan} <- Channel.open(conn),
+         :ok <- Basic.return(chan, self()),
+         :ok <- Confirm.select(chan) do
+      ProcessRegistry.register(:producer_workers, nil)
+      Process.monitor(conn.pid)
+      Process.monitor(chan.pid)
+      {:noreply, %{conn: conn, chan: chan}}
+    else
       {:error, _} ->
         Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
         Process.sleep(@reconnect_interval)
@@ -41,51 +44,47 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
     end
   end
 
-  @impl GenServer
-  def handle_info({:DOWN, _, :process, _pid, reason}, _) do
+  @impl true
+  def handle_info({:DOWN, _ref, :process, pid, reason}, %{chan: %{pid: pid}, conn: conn}) do
+    case Channel.open(conn) do
+      {:ok, chan} -> {:noreply, %{conn: conn, chan: chan}}
+      _ -> {:stop, {:connection_lost, reason}, nil}
+    end
+  end
+
+  def handle_info({:DOWN, _ref, :process, _pid, reason}, _state) do
     {:stop, {:connection_lost, reason}, nil}
   end
 
-  @impl GenServer
+  def handle_info({:basic_return, payload, %{reply_text: "NO_ROUTE"} = meta}, state) do
+    options = Enum.reject(meta, &(elem(&1, 1) == :undefined))
+    declare_and_publish(state.chan, payload, options)
+    {:noreply, state}
+  end
+
   def handle_info({_ref, {:ok, _connection}}, state) do
     {:noreply, state}
   end
 
-  @impl GenServer
-  def handle_call({:publish, message, queue, options}, _, conn) do
-    case prepare_publish(conn, queue, options) do
-      {:ok, %{channel: channel, routing_key: routing_key, exchange: exchange}} ->
-        result = publish_message(channel, message, exchange, routing_key, options)
-        Task.start(fn -> :ok = close_channel(channel) end)
-        {:reply, result, conn}
-
-      error ->
-        {:reply, error, conn}
-    end
+  @impl true
+  def handle_call({:publish, message, queue, options}, _, state) do
+    exchange = get_exchange_name(queue, options)
+    routing_key = get_routing_key(exchange, queue, options)
+    options = Keyword.put_new(options, :mandatory, true)
+    response = publish_message(state.chan, message, exchange, routing_key, options)
+    {:reply, response, state}
   end
 
-  @impl GenServer
-  def handle_call({:delete_queue, queue, options}, _, conn) do
-    with {:ok, channel} <- Channel.open(conn),
-         {:ok, _} <- Queue.delete(channel, queue, options) do
-      {:reply, :ok, conn}
-    else
-      error -> {:reply, error, conn}
-    end
-  end
-
-  defp prepare_publish(conn, queue, options) do
-    with {:ok, channel} <- Channel.open(conn),
-         {:ok, exchange} <- get_exchange_name(queue, options),
-         {:ok, %{channel: channel, routing_key: routing_key}} <-
-           declare_and_bind_queue(exchange, channel, queue, options) do
-      {:ok, %{channel: channel, routing_key: routing_key, exchange: exchange}}
+  @impl true
+  def handle_call({:delete_queue, queue, options}, _, state) do
+    case Queue.delete(state.chan, queue, options) do
+      {:ok, _} -> {:reply, :ok, state}
+      error -> {:reply, error, state}
     end
   end
 
   defp publish_message(channel, message, exchange, routing_key, options) do
-    with :ok <- Confirm.select(channel),
-         {:ok, encoded_message} <- encode_message(message, options),
+    with {:ok, encoded_message} <- encode_message(message, options),
          :ok <- Basic.publish(channel, exchange, routing_key, encoded_message, options),
          {:published, true} <- {:published, Confirm.wait_for_confirms(channel)} do
       :ok
@@ -97,12 +96,12 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
 
   defp get_exchange_type(queue, options) do
     {_exchange_name, exchange_type} = get_exchange(queue, options)
-    {:ok, exchange_type}
+    exchange_type
   end
 
   defp get_exchange_name(queue, options) do
     {exchange_name, _exchange_type} = get_exchange(queue, options)
-    {:ok, exchange_name}
+    exchange_name
   end
 
   defp get_exchange(queues, options) when is_list(queues) do
@@ -124,20 +123,30 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
     {exchange_name, exchange_type}
   end
 
-  defp declare_and_bind_queue("amq.headers", channel, _queue, _options) do
-    {:ok, %{routing_key: "", channel: channel}}
+  defp get_routing_key("amq.headers", _queue, _options), do: ""
+
+  defp get_routing_key(_exchange, queues, options) when is_list(queues) do
+    Keyword.get(options, :routing_key, "")
   end
 
-  defp declare_and_bind_queue(exchange, channel, queues, options) do
-    if match?([_ | _], options[:headers]) do
-      {:ok, %{routing_key: "", channel: channel}}
-    else
-      declare_and_bind(exchange, channel, queues, options)
+  defp get_routing_key(_exchange, queue, options) do
+    if match?([_ | _], options[:headers]), do: "", else: Keyword.get(options, :routing_key, queue)
+  end
+
+  defp declare_and_publish(channel, message, options) do
+    routing_key = options[:reply_to] || options[:routing_key] || ""
+    exchange = options[:exchange]
+    exchange_type = get_exchange_type(routing_key, options)
+
+    with :ok <- Exchange.declare(channel, exchange, exchange_type, [{:durable, true} | options]),
+         {:ok, queue} <- declare_and_bind(channel, exchange, routing_key, options),
+         :ok <- Queue.bind(channel, queue, exchange, routing_key: routing_key) do
+      publish_message(channel, message, exchange, routing_key, options)
     end
   end
 
-  defp declare_and_bind(exchange, channel, queues, options) when is_list(queues) do
-    Enum.reduce_while(queues, {:ok, %{routing_key: "", channel: channel}}, fn queue, _acc ->
+  defp declare_and_bind(channel, exchange, queues, options) when is_list(queues) do
+    Enum.reduce_while(queues, {:ok, %{routing_key: ""}}, fn queue, _acc ->
       case declare_and_bind(exchange, channel, queue, options) do
         {:ok, _} = result -> {:cont, result}
         error -> {:halt, error}
@@ -145,38 +154,13 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
     end)
   end
 
-  defp declare_and_bind(exchange, channel, queue, options) do
-    with {:ok, %{queue: queue}} <- Queue.declare(channel, queue, [{:passive, true} | options]),
+  defp declare_and_bind(channel, exchange, queue, options) do
+    with {:ok, %{queue: queue}} <- Queue.declare(channel, queue, options),
          routing_key <- Keyword.get(options, :routing_key, queue),
          :ok <- Queue.bind(channel, queue, exchange, routing_key: routing_key) do
-      {:ok, %{routing_key: routing_key, channel: channel}}
+      {:ok, queue}
     else
-      error ->
-        Task.start(fn -> :ok = close_channel(channel) end)
-        error
-    end
-  catch
-    :exit, {{:shutdown, {:server_initiated_close, 404, "NOT_FOUND - no queue" <> _}}, _} ->
-      redeclare_and_bind_queue(exchange, channel, queue, options)
-  end
-
-  defp redeclare_and_bind_queue(exchange, channel, queue, options) do
-    case Channel.open(channel.conn) do
-      {:ok, channel} ->
-        with {:ok, exchange_type} <- get_exchange_type(queue, options),
-             :ok <- Exchange.declare(channel, exchange, exchange_type, options),
-             {:ok, %{queue: queue}} <- Queue.declare(channel, queue, options),
-             routing_key <- Keyword.get(options, :routing_key, queue),
-             :ok <- Queue.bind(channel, queue, exchange, routing_key: routing_key) do
-          {:ok, %{routing_key: routing_key, channel: channel}}
-        else
-          error ->
-            Task.start(fn -> :ok = close_channel(channel) end)
-            error
-        end
-
-      error ->
-        error
+      error -> error
     end
   end
 
@@ -185,9 +169,5 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
       type: opts[:message_type],
       parser_opts: opts[:message_parser_opts] || []
     )
-  end
-
-  defp close_channel(channel) do
-    Channel.close(channel)
   end
 end
