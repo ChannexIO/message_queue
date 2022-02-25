@@ -117,9 +117,18 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
     {exchange_name, exchange_type}
   end
 
-  defp get_exchange(_queue, options) do
+  defp get_exchange(queue, options) do
     exchange_type = options[:exchange_type] || :direct
-    exchange_name = options[:exchange] || "amq.#{exchange_type}"
+    exchange_name = options[:exchange]
+    routing_key = get_routing_key(exchange_name, queue, options)
+
+    exchange_name =
+      cond do
+        queue == routing_key -> ""
+        exchange_name -> exchange_name
+        true -> "amq.#{exchange_type}"
+      end
+
     {exchange_name, exchange_type}
   end
 
