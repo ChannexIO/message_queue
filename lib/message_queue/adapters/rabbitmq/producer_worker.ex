@@ -1,7 +1,7 @@
 defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   @moduledoc false
 
-  @reconnect_interval 10_000
+  @reconnect_interval :timer.seconds(10)
 
   use AMQP
   use GenServer
@@ -147,11 +147,19 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
     exchange = options[:exchange]
     exchange_type = get_exchange_type(routing_key, options)
 
-    with :ok <- Exchange.declare(channel, exchange, exchange_type, [{:durable, true} | options]),
+    with :ok <- declare_exchange(channel, exchange, exchange_type, options),
          {:ok, queue} <- declare_and_bind(channel, exchange, routing_key, options),
          :ok <- Queue.bind(channel, queue, exchange, routing_key: routing_key) do
       publish_message(channel, message, exchange, routing_key, options)
     end
+  end
+
+  # The default exchange is a direct exchange with no name (empty string)
+  # pre-declared by the broker.
+  defp declare_exchange(_channel, "", _exchange_type, _options), do: :ok
+
+  defp declare_exchange(channel, exchange, exchange_type, options) do
+    Exchange.declare(channel, exchange, exchange_type, [{:durable, true} | options])
   end
 
   defp declare_and_bind(channel, exchange, queues, options) when is_list(queues) do
