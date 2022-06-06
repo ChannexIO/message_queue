@@ -149,13 +149,13 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
 
     with :ok <- declare_exchange(channel, exchange, exchange_type, options),
          {:ok, queue} <- declare_and_bind(channel, exchange, routing_key, options),
-         :ok <- Queue.bind(channel, queue, exchange, routing_key: routing_key) do
+         :ok <- bind_queue(channel, queue, exchange, routing_key: routing_key) do
       publish_message(channel, message, exchange, routing_key, options)
     end
   end
 
   # The default exchange is a direct exchange with no name (empty string)
-  # pre-declared by the broker.
+  # pre-declared by the broker...
   defp declare_exchange(_channel, "", _exchange_type, _options), do: :ok
 
   defp declare_exchange(channel, exchange, exchange_type, options) do
@@ -174,11 +174,19 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   defp declare_and_bind(channel, exchange, queue, options) do
     with {:ok, %{queue: queue}} <- Queue.declare(channel, queue, options),
          routing_key <- Keyword.get(options, :routing_key, queue),
-         :ok <- Queue.bind(channel, queue, exchange, routing_key: routing_key) do
+         :ok <- bind_queue(channel, queue, exchange, routing_key: routing_key) do
       {:ok, queue}
     else
       error -> error
     end
+  end
+
+  # ...every queue that is created is automatically bound to it with a routing
+  # key which is the same as the queue name.
+  defp bind_queue(_channel, _queue, "", _options), do: :ok
+
+  defp bind_queue(channel, queue, exchange, options) do
+    Queue.bind(channel, queue, exchange, options)
   end
 
   defp encode_message(message, opts) do
