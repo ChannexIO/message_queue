@@ -16,12 +16,12 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
 
   @impl MessageQueue.Adapters.Producer
   def publish(message, queue, options) do
-    ProducerWorker.request(get_worker(), {:publish, message, queue, options})
+    request_worker({:publish, message, queue, options})
   end
 
   @impl MessageQueue.Adapters.Producer
   def delete_queue(queue, options) do
-    ProducerWorker.request(get_worker(), {:delete_queue, queue, options})
+    request_worker({:delete_queue, queue, options})
   end
 
   @doc false
@@ -84,12 +84,25 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   defp format_workers_count(count) when pos_integer(count), do: count
   defp format_workers_count(_count), do: @default_workers_count
 
+  defp request_worker(request) do
+    case get_worker() do
+      {:ok, worker_pid} -> ProducerWorker.request(worker_pid, request)
+      {:error, :no_workers} -> {:error, "MessageQueue service unavailable"}
+    end
+  end
+
   defp get_worker do
     workers = ProcessRegistry.lookup(:producer_workers)
-    workers_count = length(workers)
-    next_index = get_and_increment_worker_index(workers_count)
-    {pid, nil} = Enum.at(workers, rem(next_index, workers_count))
-    pid
+
+    case Enum.count(workers) do
+      0 ->
+        {:error, :no_workers}
+
+      workers_count ->
+        next_index = get_and_increment_worker_index(workers_count)
+        {pid, nil} = Enum.at(workers, rem(next_index, workers_count))
+        {:ok, pid}
+    end
   end
 
   defp get_and_increment_worker_index(workers_count) do
