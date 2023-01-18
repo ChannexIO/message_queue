@@ -9,11 +9,11 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   require Logger
 
   alias MessageQueue.Adapters.RabbitMQ.ProcessRegistry
-  alias MessageQueue.{Message, Utils}
+  alias MessageQueue.Message
 
   @doc false
-  def request(pid, request) do
-    GenServer.call(pid, request, Utils.call_timeout())
+  def request(channel, request) do
+    perform_request(channel, request)
   end
 
   @doc false
@@ -22,8 +22,8 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   end
 
   @impl GenServer
-  def init(state) do
-    {:ok, state, {:continue, :connect}}
+  def init(init_arg) do
+    {:ok, init_arg, {:continue, :connect}}
   end
 
   @impl GenServer
@@ -32,10 +32,10 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
          {:ok, chan} <- Channel.open(conn),
          :ok <- Basic.return(chan, self()),
          :ok <- Confirm.select(chan) do
-      ProcessRegistry.register(:producer_workers, nil)
+      ProcessRegistry.register(:producer_workers, chan)
       Process.monitor(conn.pid)
       Process.monitor(chan.pid)
-      {:noreply, %{conn: conn, chan: chan}}
+      {:noreply, state}
     else
       {:error, _} ->
         Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
@@ -66,20 +66,16 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
     {:noreply, state}
   end
 
-  @impl true
-  def handle_call({:publish, message, queue, options}, _, state) do
+  defp perform_request(channel, {:publish, message, queue, options}) do
     exchange = get_exchange_name(queue, options)
     routing_key = get_routing_key(exchange, queue, options)
     options = Keyword.put_new(options, :mandatory, true)
-    response = publish_message(state.chan, message, exchange, routing_key, options)
-    {:reply, response, state}
+    publish_message(channel, message, exchange, routing_key, options)
   end
 
-  @impl true
-  def handle_call({:delete_queue, queue, options}, _, state) do
-    case Queue.delete(state.chan, queue, options) do
-      {:ok, _} -> {:reply, :ok, state}
-      error -> {:reply, error, state}
+  defp perform_request(channel, {:delete_queue, queue, options}) do
+    with {:ok, _} <- Queue.delete(channel, queue, options) do
+      :ok
     end
   end
 
