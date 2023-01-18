@@ -85,13 +85,13 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   defp format_workers_count(_count), do: @default_workers_count
 
   defp request_worker(request) do
-    case get_worker() do
-      {:ok, worker_pid} -> ProducerWorker.request(worker_pid, request)
+    case get_worker_channel() do
+      {:ok, channel} -> ProducerWorker.request(channel, request)
       {:error, :no_workers} -> {:error, "MessageQueue service unavailable"}
     end
   end
 
-  defp get_worker do
+  defp get_worker_channel do
     workers = ProcessRegistry.lookup(:producer_workers)
 
     case Enum.count(workers) do
@@ -100,8 +100,8 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
 
       workers_count ->
         next_index = get_and_increment_worker_index(workers_count)
-        {pid, nil} = Enum.at(workers, rem(next_index, workers_count))
-        {:ok, pid}
+        {_pid, channel} = Enum.at(workers, rem(next_index, workers_count))
+        {:ok, channel}
     end
   end
 
