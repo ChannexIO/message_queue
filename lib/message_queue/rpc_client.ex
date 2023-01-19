@@ -10,8 +10,8 @@ defmodule MessageQueue.RPCClient do
     }
   end
 
-  def call(module, function, args) do
-    MessageQueue.rpc_client().call(module, function, args)
+  def call(module, function, args, opts) do
+    MessageQueue.rpc_client().call(module, function, args, opts)
   end
 
   def cast(module, function, args) do

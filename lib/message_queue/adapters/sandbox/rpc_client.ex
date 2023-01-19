@@ -13,7 +13,7 @@ defmodule MessageQueue.Adapters.Sandbox.RPCClient do
   def init(state), do: {:ok, state}
 
   @impl true
-  def call(_module, _function, _args), do: :ok
+  def call(_module, _function, _args, _opts), do: :ok
 
   @impl true
   def cast(_module, _function, _args), do: :ok
