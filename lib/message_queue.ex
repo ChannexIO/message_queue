@@ -3,7 +3,7 @@ defmodule MessageQueue do
 
   defdelegate publish(message, queue, options \\ []), to: MessageQueue.Producer
   defdelegate delete_queue(queue, options \\ []), to: MessageQueue.Producer
-  defdelegate rpc_call(module, function, args), to: MessageQueue.RPCClient, as: :call
+  defdelegate rpc_call(module, function, args, opts \\ []), to: MessageQueue.RPCClient, as: :call
   defdelegate rpc_cast(module, function, args), to: MessageQueue.RPCClient, as: :cast
   defdelegate get_connection(), to: MessageQueue.Connection, as: :get
   defdelegate encode_data(data, opts \\ []), to: MessageQueue.Message, as: :encode

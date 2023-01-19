@@ -17,8 +17,8 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
   end
 
   @impl true
-  def call(service_name, function, args) do
-    GenServer.call(__MODULE__, {:exec, {service_name, function, args}}, @call_timeout)
+  def call(service_name, function, args, opts \\ []) do
+    GenServer.call(__MODULE__, {:exec, {service_name, function, args}, opts}, set_timeout(opts))
   end
 
   @impl true
@@ -84,10 +84,10 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
   end
 
   @impl true
-  def handle_call({:exec, command}, from, state) do
+  def handle_call({:exec, command, opts}, from, state) do
     with {:ok, %{payload: payload, correlation_id: correlation_id}} <-
            Request.prepare_call(command),
-         timeout_ref <- schedule_timeout_error(correlation_id),
+         timeout_ref <- schedule_timeout_error(opts, correlation_id),
          :ok <- publish(command, payload, state, correlation_id) do
       {:noreply, %{state | calls: Map.put(state.calls, correlation_id, {from, timeout_ref})}}
     else
@@ -116,6 +116,11 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
 
   def terminate(_, _), do: :normal
 
+  defp set_timeout(opts) do
+    timeout = opts[:timeout] || @call_timeout
+    if is_integer(timeout) and timeout > 0, do: timeout, else: @call_timeout
+  end
+
   defp publish({service_name, _function, _args}, payload, state) do
     Basic.publish(state.channel, "rpc", "", payload, headers: [{service_name, true}])
   end
@@ -140,8 +145,12 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
     end
   end
 
-  defp schedule_timeout_error(correlation_id) do
-    timeout = @call_timeout - :timer.seconds(5)
+  # since on timeout we will get exception and couldn't send timeout error
+  # response to the calling process, we schedule timeout error reply that will
+  # be sended before the actual timeout
+  defp schedule_timeout_error(opts, correlation_id) do
+    timeout = set_timeout(opts) - :timer.seconds(5)
+    timeout = if timeout >= 0, do: timeout, else: 0
     Process.send_after(__MODULE__, {:timeout, correlation_id}, timeout)
   end
 end
