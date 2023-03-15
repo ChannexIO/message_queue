@@ -35,7 +35,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
       ProcessRegistry.register(:producer_workers, chan)
       Process.monitor(conn.pid)
       Process.monitor(chan.pid)
-      {:noreply, state}
+      {:noreply, %{chan: chan}}
     else
       {:error, _} ->
         Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
