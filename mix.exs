@@ -27,8 +27,8 @@ defmodule MessageQueue.MixProject do
 
   defp deps do
     [
-      {:amqp, "~> 3.1"},
-      {:jason, "~> 1.3"}
+      {:amqp, "~> 3.2"},
+      {:jason, "~> 1.4"}
     ]
   end
 
