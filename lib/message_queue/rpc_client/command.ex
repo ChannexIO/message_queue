@@ -14,29 +14,28 @@ defmodule MessageQueue.RPCClient.Command do
   end
 
   defp execute(payload) do
-    try do
-      with {:ok, %{"module" => module, "function" => function, "args" => args}} <-
-             Jason.decode(payload),
-           {:ok, module} <- get_module_name(module),
-           {:ok, function} <- get_function_name(function),
-           true <- module in MessageQueue.rpc_modules(),
-           true <- Code.ensure_loaded?(module),
-           true <- function_exported?(module, function, length(args)) do
-        apply(module, function, args)
-      else
-        _ -> {:error, :not_supported_method}
-      end
-    rescue
-      error ->
-        Logger.error(inspect(error))
-        {:error, :internal_error}
+    with {:ok, %{"module" => module, "function" => function, "args" => args}} <-
+           Jason.decode(payload),
+         {:ok, module} <- get_module_name(module),
+         {:ok, function} <- get_function_name(function),
+         true <- module in MessageQueue.rpc_modules(),
+         true <- Code.ensure_loaded?(module),
+         true <- function_exported?(module, function, length(args)) do
+      apply(module, function, args)
+    else
+      _ -> {:error, :not_supported_method}
     end
+  rescue
+    error ->
+      Logger.error(ctx: __MODULE__, error: inspect(error))
+      {:error, :internal_error}
   end
 
   defp encode(msg) do
-    with {:ok, encoded_msg} <- Jason.encode(msg) do
-      encoded_msg
-    else
+    case Jason.encode(msg) do
+      {:ok, encoded_msg} ->
+        encoded_msg
+
       {:error, error} ->
         Logger.warning("JSON Encode error #{inspect(error)}")
         {:error, :encode_error}
@@ -48,10 +47,8 @@ defmodule MessageQueue.RPCClient.Command do
   end
 
   defp get_function_name(function) do
-    try do
-      {:ok, String.to_existing_atom(function)}
-    rescue
-      _ -> :error
-    end
+    {:ok, String.to_existing_atom(function)}
+  rescue
+    _ -> :error
   end
 end
