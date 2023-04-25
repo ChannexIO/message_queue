@@ -31,7 +31,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
     quote do
       @reconnect_interval 10_000
 
-      alias AMQP.{Channel, Connection, Exchange, Queue, Basic}
+      alias AMQP.{Basic, Channel, Connection, Exchange, Queue}
       use GenServer
       require Logger
 
