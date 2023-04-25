@@ -53,18 +53,21 @@ defmodule MessageQueue.Adapters.RabbitMQ.Connection do
 
   @impl true
   def handle_info({:DOWN, _, :process, pid, reason}, connections) do
-    with [] <- Enum.reject(connections, &(&1.connection.pid == pid)) do
-      {:stop, {:connection_lost, reason}, nil}
-    else
-      connections -> {:noreply, connections}
+    case Enum.reject(connections, &(&1.connection.pid == pid)) do
+      [] ->
+        {:stop, {:connection_lost, reason}, nil}
+
+      connections ->
+        {:noreply, connections}
     end
   end
 
   defp connect(connection_details, connections) do
-    with {:ok, conn} <- Connection.open(connection_details) do
-      Process.monitor(conn.pid)
-      {:noreply, [%{connection: conn, call_count: 0} | connections]}
-    else
+    case Connection.open(connection_details) do
+      {:ok, conn} ->
+        Process.monitor(conn.pid)
+        {:noreply, [%{connection: conn, call_count: 0} | connections]}
+
       _error ->
         Logger.error("[Connection] Failed to connect RabbitMQ. Reconnecting later...")
         Process.sleep(@reconnect_interval)
