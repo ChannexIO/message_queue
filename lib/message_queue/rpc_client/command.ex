@@ -27,7 +27,7 @@ defmodule MessageQueue.RPCClient.Command do
     end
   rescue
     error ->
-      Logger.error(ctx: __MODULE__, error: inspect(error))
+      Logger.error(ctx: __MODULE__, error: "Execute error #{inspect(error)}")
       {:error, :internal_error}
   end
 
@@ -37,7 +37,7 @@ defmodule MessageQueue.RPCClient.Command do
         encoded_msg
 
       {:error, error} ->
-        Logger.warning("JSON Encode error #{inspect(error)}")
+        Logger.error(ctx: __MODULE__, error: "JSON Encode error #{inspect(error)}")
         {:error, :encode_error}
     end
   end
