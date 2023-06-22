@@ -29,7 +29,7 @@ defmodule MessageQueue.MixProject do
     [
       {:amqp, "~> 3.3"},
       {:jason, "~> 1.4"},
-      {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.3", only: [:dev], runtime: false}
     ]
   end
