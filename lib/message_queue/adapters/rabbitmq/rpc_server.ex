@@ -12,9 +12,9 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCServer do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
 
+  # TODO Change implementation to support concurrently requests
   @impl true
   def init(_state) do
-    IO.warn("not implemented")
     :ignore
   end
 
