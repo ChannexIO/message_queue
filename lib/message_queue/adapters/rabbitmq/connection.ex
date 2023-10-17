@@ -66,13 +66,13 @@ defmodule MessageQueue.Adapters.RabbitMQ.Connection do
       {:noreply, [%{connection: conn, call_count: 0} | connections]}
     else
       _error ->
-        Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
+        Logger.error("[Connection] Failed to connect RabbitMQ. Reconnecting later...")
         Process.sleep(@reconnect_interval)
         {:noreply, connections, {:continue, :add_connect}}
     end
   catch
     :exit, error ->
-      Logger.error("RabbitMQ error: #{inspect(error)} Reconnecting later...")
+      Logger.error("[Connection] RabbitMQ error: #{inspect(error)} Reconnecting later...")
       Process.sleep(@reconnect_interval)
       {:noreply, connections, {:continue, :add_connect}}
   end

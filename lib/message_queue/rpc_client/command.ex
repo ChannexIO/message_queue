@@ -38,7 +38,7 @@ defmodule MessageQueue.RPCClient.Command do
       encoded_msg
     else
       {:error, error} ->
-        Logger.warn("JSON Encode error #{inspect(error)}")
+        Logger.warning("JSON Encode error #{inspect(error)}")
         {:error, :encode_error}
     end
   end

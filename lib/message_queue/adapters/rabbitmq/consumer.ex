@@ -48,6 +48,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
         queue_options = Map.get(options, :queue_options, [])
         binding_options = Map.get(options, :bindings, [])
         after_connect = Map.get(options, :after_connect, fn _channel -> :ok end)
+        consumer_tag = Map.get(options, :consumer_tag, "")
 
         with {:ok, conn} <- MessageQueue.get_connection(),
              {:ok, channel} <- Channel.open(conn),
@@ -55,18 +56,18 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
              :ok <- Basic.qos(channel, prefetch_count: prefetch_count),
              {:ok, _} <- Queue.declare(channel, queue, queue_options ++ [durable: true]),
              :ok <- binding_if_needs(channel, queue, binding_options),
-             {:ok, _} <- Basic.consume(channel, queue) do
+             {:ok, _} <- Basic.consume(channel, queue, nil, consumer_tag: consumer_tag) do
           Process.monitor(channel.pid)
           {:noreply, %{channel: channel, options: options}}
         else
-          _error ->
-            Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
+          error ->
+            Logger.error("[Consumer] Failed to connect RabbitMQ. Reconnecting later...")
             Process.sleep(@reconnect_interval)
             {:noreply, state, {:continue, :connect}}
         end
       catch
         :exit, error ->
-          Logger.error("RabbitMQ error: #{inspect(error)} Reconnecting later...")
+          Logger.error("[Consumer] RabbitMQ error: #{inspect(error)} Reconnecting later...")
           Process.sleep(@reconnect_interval)
           {:noreply, state, {:continue, :connect}}
       end

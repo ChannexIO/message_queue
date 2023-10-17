@@ -30,6 +30,14 @@ defmodule MessageQueue do
     "rpc_#{app_name}"
   end
 
+  @spec prefix_queue_or_empty(binary()) :: binary()
+  def prefix_queue_or_empty(queue) do
+    case Application.get_env(:message_queue, :app_name, "") do
+      "" -> ""
+      app_name -> "#{app_name}.#{queue}"
+    end
+  end
+
   @spec rpc_modules() :: list()
   def rpc_modules do
     Application.get_env(:message_queue, :rpc_modules, [])
