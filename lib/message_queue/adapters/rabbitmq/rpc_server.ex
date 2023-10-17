@@ -14,7 +14,6 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCServer do
 
   @impl true
   def init(_state) do
-    IO.warn("not implemented")
     :ignore
   end
 
@@ -31,13 +30,13 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCServer do
       {:noreply, channel, :hibernate}
     else
       _error ->
-        Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
+        Logger.error("[RPCServer] Failed to connect RabbitMQ. Reconnecting later...")
         Process.sleep(@reconnect_interval)
         {:noreply, state, {:continue, :connect}}
     end
   catch
     :exit, error ->
-      Logger.error("RabbitMQ error: #{inspect(error)}. Reconnecting later...")
+      Logger.error("[RPCServer] RabbitMQ error: #{inspect(error)}. Reconnecting later...")
       Process.sleep(@reconnect_interval)
       {:noreply, state, {:continue, :connect}}
   end

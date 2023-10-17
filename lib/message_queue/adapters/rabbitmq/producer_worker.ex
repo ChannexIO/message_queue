@@ -38,7 +38,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
       {:noreply, %{chan: chan}}
     else
       {:error, _} ->
-        Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
+        Logger.error("[ProducerWorker] Failed to connect RabbitMQ. Reconnecting later...")
         Process.sleep(@reconnect_interval)
         {:noreply, state, {:continue, :connect}}
     end

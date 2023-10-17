@@ -33,21 +33,23 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
 
   @impl true
   def handle_continue(:connect, state) do
+    queue_name = MessageQueue.prefix_queue_or_empty("rpc_client")
+
     with {:ok, conn} <- MessageQueue.get_connection(),
          {:ok, channel} <- Channel.open(conn),
-         {:ok, %{queue: queue}} <- Queue.declare(channel, "", auto_delete: true),
+         {:ok, %{queue: queue}} <- Queue.declare(channel, queue_name, auto_delete: true),
          {:ok, _} <- Basic.consume(channel, queue, nil, no_ack: true) do
       Process.monitor(channel.pid)
       {:noreply, %{channel: channel, queue: queue, calls: %{}}}
     else
       _error ->
-        Logger.error("Failed to connect RabbitMQ. Reconnecting later...")
+        Logger.error("[RPCClient] Failed to connect RabbitMQ. Reconnecting later...")
         Process.sleep(@reconnect_interval)
         {:noreply, state, {:continue, :connect}}
     end
   catch
     :exit, error ->
-      Logger.error("RabbitMQ error: #{inspect(error)}. Reconnecting later...")
+      Logger.error("[RPCClient] RabbitMQ error: #{inspect(error)}. Reconnecting later...")
       Process.sleep(@reconnect_interval)
       {:noreply, state, {:continue, :connect}}
   end
