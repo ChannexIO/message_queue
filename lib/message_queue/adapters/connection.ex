@@ -3,5 +3,5 @@ defmodule MessageQueue.Adapters.Connection do
     Behaviour for creating MessageQueue connections
   """
 
-  @callback get() :: {:ok | AMQP.Connection.t() | term()} | {:error, :not_connected}
+  @callback get() :: {:ok, AMQP.Connection.t() | term()} | {:error, :not_connected}
 end
