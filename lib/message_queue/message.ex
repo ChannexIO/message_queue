@@ -14,7 +14,7 @@ defmodule MessageQueue.Message do
   @type data() :: term()
   @type opts() :: Access.t()
   @type encoded_message() :: binary() | String.t()
-  @type decoded_message() :: binary() | String.t() | term()
+  @type decoded_message() :: term()
   @type parsing_error() :: String.t()
 
   @doc """
