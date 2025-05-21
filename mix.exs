@@ -2,14 +2,14 @@ defmodule MessageQueue.MixProject do
   use Mix.Project
 
   @name "MessageQueue"
-  @version "0.8.1"
+  @version "0.8.2"
   @repo_url "https://github.com/ChannexIO/message_queue"
 
   def project do
     [
       app: :message_queue,
       version: @version,
-      elixir: "~> 1.9",
+      elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       name: @name,
       source_url: @repo_url,
@@ -29,6 +29,7 @@ defmodule MessageQueue.MixProject do
     [
       {:amqp, "~> 3.3"},
       {:jason, "~> 1.4"},
+      {:nimble_options, "~> 0.4 or ~> 1.0"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.3", only: [:dev], runtime: false}
     ]
