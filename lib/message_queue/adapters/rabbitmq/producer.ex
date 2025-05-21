@@ -5,24 +5,30 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
 
   @behaviour MessageQueue.Adapters.Producer
 
-  alias MessageQueue.Adapters.RabbitMQ.{ProcessRegistry, ProducerWorker}
+  alias MessageQueue.Adapters.RabbitMQ.ProcessRegistry
+  alias MessageQueue.Adapters.RabbitMQ.ProducerWorker
+  alias MessageQueue.Utils
 
   require Logger
 
+  @module_name inspect(__MODULE__)
   @default_workers_count 2
   @workers_index_counter Module.concat(__MODULE__, WorkersIndexCounter)
-  @max_attempts 5
 
   defguardp pos_integer(term) when is_integer(term) and term > 0
 
   @impl MessageQueue.Adapters.Producer
   def publish(message, queue, options) do
-    request_worker({:publish, message, queue, options})
+    retry(current_monotonic_time(), fn ->
+      request_worker({:publish, message, queue, options})
+    end)
   end
 
   @impl MessageQueue.Adapters.Producer
   def delete_queue(queue, options) do
-    request_worker({:delete_queue, queue, options})
+    retry(current_monotonic_time(), fn ->
+      request_worker({:delete_queue, queue, options})
+    end)
   end
 
   @doc false
@@ -85,18 +91,11 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   defp format_workers_count(count) when pos_integer(count), do: count
   defp format_workers_count(_count), do: @default_workers_count
 
-  defp request_worker(request, attempt \\ 0)
-  defp request_worker(request, attempt) when attempt < @max_attempts do
+  defp request_worker(request) do
     case get_worker_channel() do
       {:ok, channel} -> ProducerWorker.request(channel, request)
-      {:error, :no_workers} ->
-        Process.sleep(delay_for_error_request(attempt))
-        request_worker(request, attempt + 1)
+      {:error, :no_workers} -> {:error, "MessageQueue service unavailable"}
     end
-  end
-
-  defp request_worker(_request, _attempt) do
-    {:error, "MessageQueue service unavailable"}
   end
 
   defp get_worker_channel do
@@ -119,9 +118,68 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
     :ets.update_counter(@workers_index_counter, :worker_index, update_operation, default)
   end
 
-  defp delay_for_error_request(attempt) do
+  defp retry(start_time, fun, attempt \\ 0) do
+    with {:error, error} <- fun.(),
+         {:ok, delay} <- set_retry_delay(start_time, attempt, error) do
+      Process.sleep(delay)
+      retry(start_time, fun, attempt + 1)
+    else
+      :ok ->
+        log_retry_success(attempt)
+        :ok
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp set_retry_delay(start_time, attempt, error) do
+    params = Utils.producer_retry_params()
+    max_total_time = params[:max_total_time]
+    max_delay = params[:max_delay]
+    buffer_time = params[:buffer_time]
+    now = current_monotonic_time()
+    elapsed = now - start_time
+    delay = delay_for_error_request(attempt, max_delay)
+
+    cond do
+      elapsed + delay <= max_total_time ->
+        log_retry_warning("retrying in #{delay} ms (attempt #{attempt + 1})...")
+        {:ok, delay}
+
+      max_total_time - elapsed > buffer_time ->
+        adjusted_delay = max_total_time - elapsed - jitter(buffer_time)
+        log_retry_warning("final retry in #{adjusted_delay} ms (attempt #{attempt + 1})...")
+        {:ok, adjusted_delay}
+
+      true ->
+        log_retry_warning("giving up after #{attempt} attempts and #{elapsed} ms: #{error}")
+        {:error, error}
+    end
+  end
+
+  defp log_retry_warning(warning), do: Logger.warning("#{@module_name} #{warning}")
+
+  defp log_retry_success(0), do: :ok
+
+  defp log_retry_success(attempt) do
+    Logger.info("#{@module_name} success on attempt #{attempt + 1}")
+  end
+
+  defp current_monotonic_time, do: System.monotonic_time(:millisecond)
+
+  defp delay_for_error_request(attempt, max_delay) do
     2
     |> Integer.pow(attempt)
     |> :timer.seconds()
+    |> min(max_delay)
+    |> jitter()
+  end
+
+  # Add jitter: 80%–100% of delay to prevent multiple requests from trying
+  # to execute at the same time
+  defp jitter(delay) do
+    min = trunc(delay * 0.8)
+    Enum.random(min..delay)
   end
 end
