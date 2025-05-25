@@ -75,4 +75,18 @@ defmodule MessageQueue.Utils do
       {:error, _error} -> NimbleOptions.validate!([], @producer_retry_opts_schema)
     end
   end
+
+  @doc false
+  def interpolate_template(template, values) when is_binary(template) and is_map(values) do
+    String.replace(template, ~r/\$(\w+)/, fn "$" <> key ->
+      case Map.fetch(values, String.to_atom(key)) do
+        {:ok, val} -> safe_to_string(val)
+        :error -> "$#{key}"
+      end
+    end)
+  end
+
+  defp safe_to_string(term) do
+    if String.Chars.impl_for(term), do: to_string(term), else: inspect(term)
+  end
 end

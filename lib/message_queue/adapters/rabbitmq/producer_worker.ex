@@ -46,20 +46,6 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   end
 
   @impl true
-  def handle_info({:DOWN, _ref, :process, pid, reason}, %{chan: %{pid: pid}, conn: conn}) do
-    case Channel.open(conn) do
-      {:ok, chan} ->
-        Logger.warning(
-          "[ProducerWorker] reopen channel on :DOWN #{inspect(conn.pid)} #{inspect(chan.pid)}"
-        )
-
-        {:noreply, %{conn: conn, chan: chan}}
-
-      _ ->
-        {:stop, {:connection_lost, reason}, nil}
-    end
-  end
-
   def handle_info({:DOWN, _ref, :process, _pid, reason}, _state) do
     {:stop, {:connection_lost, reason}, nil}
   end
