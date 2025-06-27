@@ -35,6 +35,8 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
       use GenServer
       require Logger
 
+      @module_name inspect(__MODULE__)
+
       @impl true
       def init(options) do
         Process.flag(:trap_exit, true)
@@ -57,17 +59,22 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
              {:ok, _} <- Queue.declare(channel, queue, queue_options ++ [durable: true]),
              :ok <- binding_if_needs(channel, queue, binding_options),
              {:ok, _} <- Basic.consume(channel, queue, nil, consumer_tag: consumer_tag) do
+          Logger.info("[#{@module_name}] Connected to RabbitMQ. Consumer started.")
           Process.monitor(channel.pid)
           {:noreply, %{channel: channel, options: options}}
         else
           error ->
-            Logger.error("[Consumer] Failed to connect RabbitMQ. Reconnecting later...")
+            Logger.error("[#{@module_name}] Failed to connect RabbitMQ. Reconnecting later...")
+
             Process.sleep(@reconnect_interval)
             {:noreply, state, {:continue, :connect}}
         end
       catch
         :exit, error ->
-          Logger.error("[Consumer] RabbitMQ error: #{inspect(error)} Reconnecting later...")
+          Logger.error(
+            "[#{@module_name}] RabbitMQ error: #{inspect(error)} Reconnecting later..."
+          )
+
           Process.sleep(@reconnect_interval)
           {:noreply, state, {:continue, :connect}}
       end
