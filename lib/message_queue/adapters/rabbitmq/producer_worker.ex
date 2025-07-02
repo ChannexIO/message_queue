@@ -137,8 +137,10 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
     exchange = options[:exchange]
     exchange_type = get_exchange_type(routing_key, options)
 
+    queue_options = add_queue_declare_params(options, routing_key)
+
     with :ok <- declare_exchange(channel, exchange, exchange_type, options),
-         {:ok, queue} <- declare_and_bind(channel, exchange, routing_key, options),
+         {:ok, queue} <- declare_and_bind(channel, exchange, routing_key, queue_options),
          :ok <- bind_queue(channel, queue, exchange, routing_key: routing_key) do
       publish_message(channel, message, exchange, routing_key, options)
     end
@@ -185,4 +187,21 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
       parser_opts: opts[:message_parser_opts] || []
     )
   end
+
+  defp get_queue_declare_params(routing_key) do
+    get_queue_declare_params(routing_key, declare_configuration_module())
+  end
+
+  defp get_queue_declare_params(_routing_key, nil), do: []
+
+  defp get_queue_declare_params(routing_key, module) do
+    module.get_config(routing_key) || []
+  end
+
+  defp add_queue_declare_params(options, routing_key) do
+    Keyword.merge(options, get_queue_declare_params(routing_key))
+  end
+
+  defp declare_configuration_module,
+    do: Application.get_env(:message_queue, :declare_configuration_module)
 end
