@@ -153,6 +153,9 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
   defp schedule_timeout_error(opts, correlation_id) do
     timeout = set_timeout(opts) - :timer.seconds(5)
     timeout = if timeout >= 0, do: timeout, else: 0
-    Process.send_after(__MODULE__, {:timeout, correlation_id}, timeout)
+
+    __MODULE__
+    |> Process.whereis()
+    |> Process.send_after({:timeout, correlation_id}, timeout)
   end
 end
