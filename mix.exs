@@ -9,7 +9,7 @@ defmodule MessageQueue.MixProject do
     [
       app: :message_queue,
       version: @version,
-      elixir: "~> 1.15",
+      elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       name: @name,
       source_url: @repo_url,
