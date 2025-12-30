@@ -27,11 +27,11 @@ defmodule MessageQueue.MixProject do
 
   defp deps do
     [
-      {:amqp, "~> 3.3"},
+      {:amqp, "~> 4.1"},
       {:jason, "~> 1.4"},
       {:nimble_options, "~> 0.4 or ~> 1.0"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.3", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
     ]
   end
 
