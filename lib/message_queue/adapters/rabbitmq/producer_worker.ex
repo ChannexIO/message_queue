@@ -67,16 +67,57 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
     publish_message(channel, message, exchange, routing_key, options)
   end
 
+  defp perform_request(channel, {:publish_all, messages, _options}) do
+    publish_batch(channel, messages)
+  end
+
   defp perform_request(channel, {:delete_queue, queue, options}) do
     with {:ok, _} <- queue_module().delete(channel, queue, options) do
       :ok
     end
   end
 
-  defp publish_message(channel, message, exchange, routing_key, options) do
-    with {:ok, encoded_message} <- encode_message(message, options),
-         :ok <- publish_encoded_message(channel, encoded_message, exchange, routing_key, options) do
+  defp publish_batch(_channel, []), do: :ok
+
+  defp publish_batch(channel, messages) do
+    with {:ok, prepared} <- prepare_batch(messages),
+         :ok <- publish_prepared(channel, prepared),
+         {:published, true} <- {:published, confirm_module().wait_for_confirms(channel)} do
       :ok
+    else
+      {:published, _} -> {:error, :not_published}
+      error -> error
+    end
+  end
+
+  defp prepare_batch(messages) do
+    with {:ok, acc} <- Enum.reduce_while(messages, {:ok, []}, &prepare_message/2) do
+      {:ok, Enum.reverse(acc)}
+    end
+  end
+
+  defp prepare_message({message, queue, options}, {:ok, acc}) do
+    exchange = get_exchange_name(queue, options)
+    routing_key = get_routing_key(exchange, queue, options)
+    options = Keyword.put_new(options, :mandatory, true)
+
+    case encode_message(message, options) do
+      {:ok, payload} -> {:cont, {:ok, [{exchange, routing_key, payload, options} | acc]}}
+      error -> {:halt, error}
+    end
+  end
+
+  defp publish_prepared(_channel, []), do: :ok
+
+  defp publish_prepared(channel, [{exchange, routing_key, payload, options} | rest]) do
+    with :ok <- basic_module().publish(channel, exchange, routing_key, payload, options) do
+      publish_prepared(channel, rest)
+    end
+  end
+
+  defp publish_message(channel, message, exchange, routing_key, options) do
+    with {:ok, encoded_message} <- encode_message(message, options) do
+      publish_encoded_message(channel, encoded_message, exchange, routing_key, options)
     end
   end
 

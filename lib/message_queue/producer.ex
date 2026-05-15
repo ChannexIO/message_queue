@@ -11,6 +11,10 @@ defmodule MessageQueue.Producer do
     MessageQueue.producer().publish(message, queue, options)
   end
 
+  def publish_all(messages, options) do
+    MessageQueue.producer().publish_all(messages, options)
+  end
+
   def delete_queue(queue, options) do
     MessageQueue.producer().delete_queue(queue, options)
   end

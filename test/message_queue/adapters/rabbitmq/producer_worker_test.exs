@@ -17,8 +17,10 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorkerTest do
     @moduledoc false
     def select(_channel), do: :ok
 
-    def wait_for_confirms(_channel),
-      do: Application.get_env(:message_queue, :test_confirm_result, true)
+    def wait_for_confirms(channel) do
+      send(self(), {:wait_for_confirms, channel})
+      Application.get_env(:message_queue, :test_confirm_result, true)
+    end
   end
 
   defmodule TestQueue do
@@ -238,6 +240,89 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorkerTest do
 
     assert publish_options[:routing_key] == "missing.queue"
     assert publish_options[:reply_to] == "reply.queue"
+  end
+
+  test "publish_all publishes batch and calls wait_for_confirms exactly once" do
+    messages = [
+      {%{id: 1}, "queue.one", [message_type: :json]},
+      {%{id: 2}, "queue.two", [message_type: :json]},
+      {%{id: 3}, "queue.three", [message_type: :json]}
+    ]
+
+    assert :ok = ProducerWorker.request(:test_channel, {:publish_all, messages, []})
+
+    assert_received {:publish, :test_channel, "", "queue.one", ~s({"id":1}), _}
+    assert_received {:publish, :test_channel, "", "queue.two", ~s({"id":2}), _}
+    assert_received {:publish, :test_channel, "", "queue.three", ~s({"id":3}), _}
+
+    assert_received {:wait_for_confirms, :test_channel}
+    refute_received {:wait_for_confirms, _}
+  end
+
+  test "publish_all with empty list short-circuits and never calls publish or confirm" do
+    assert :ok = ProducerWorker.request(:test_channel, {:publish_all, [], []})
+
+    refute_received {:publish, _, _, _, _, _}
+    refute_received {:wait_for_confirms, _}
+  end
+
+  test "publish_all returns :not_published when confirm fails" do
+    Application.put_env(:message_queue, :test_confirm_result, false)
+
+    messages = [{%{id: 1}, "queue.one", [message_type: :json]}]
+
+    assert {:error, :not_published} =
+             ProducerWorker.request(:test_channel, {:publish_all, messages, []})
+
+    assert_received {:publish, _, _, _, _, _}
+    assert_received {:wait_for_confirms, :test_channel}
+  end
+
+  test "publish_all aborts batch on encoding error before publishing anything" do
+    messages = [
+      {%{id: 1}, "queue.one", [message_type: :json]},
+      {%{id: 2}, "queue.two", [message_type: :raw]},
+      {%{id: 3}, "queue.three", [message_type: :json]}
+    ]
+
+    assert {:error, _} =
+             ProducerWorker.request(:test_channel, {:publish_all, messages, []})
+
+    refute_received {:publish, _, _, _, _, _}
+    refute_received {:wait_for_confirms, _}
+  end
+
+  test "publish_all aborts and publishes nothing when encoding fails in the middle" do
+    messages = [
+      {%{id: 1}, "queue.one", [message_type: :json]},
+      {%{id: 2}, "queue.two", [message_type: :json]},
+      {%{id: 3}, "queue.three", [message_type: :raw]},
+      {%{id: 4}, "queue.four", [message_type: :json]}
+    ]
+
+    assert {:error, _} = ProducerWorker.request(:test_channel, {:publish_all, messages, []})
+
+    refute_received {:publish, _, _, _, _, _}
+    refute_received {:wait_for_confirms, _}
+  end
+
+  test "publish_all honors per-message :message_type independently" do
+    messages = [
+      {%{id: 1}, "queue.one", [message_type: :json]},
+      {"raw-payload", "queue.two", [message_type: :raw]},
+      {%{id: 3}, "queue.three", [message_type: :ext_binary]}
+    ]
+
+    assert :ok = ProducerWorker.request(:test_channel, {:publish_all, messages, []})
+
+    assert_received {:publish, _, _, "queue.one", json_payload, _}
+    assert json_payload == ~s({"id":1})
+
+    assert_received {:publish, _, _, "queue.two", raw_payload, _}
+    assert raw_payload == "raw-payload"
+
+    assert_received {:publish, _, _, "queue.three", bin_payload, _}
+    assert <<131, _rest::binary>> = bin_payload
   end
 
   defp restore_env(key, nil), do: Application.delete_env(:message_queue, key)

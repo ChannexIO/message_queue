@@ -26,6 +26,15 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   end
 
   @impl Producer
+  def publish_all([], _options), do: :ok
+
+  def publish_all(messages, options) do
+    retry(current_monotonic_time(), options[:message_id], fn ->
+      request_worker({:publish_all, messages, options})
+    end)
+  end
+
+  @impl Producer
   def delete_queue(queue, options) do
     retry(current_monotonic_time(), options[:message_id], fn ->
       request_worker({:delete_queue, queue, options})
