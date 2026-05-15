@@ -3,12 +3,14 @@ defmodule MessageQueue.Adapters.RabbitMQ.Connection do
 
   @behaviour MessageQueue.Adapters.Connection
 
-  alias AMQP.Connection
   use GenServer
+
+  alias AMQP.Connection
+
   require Logger
 
-  @reconnect_interval 10_000
-  @call_limit 2_000
+  @reconnect_interval to_timeout(second: 10)
+  @call_limit to_timeout(second: 2)
 
   def start_link(_) do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
@@ -29,8 +31,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Connection do
   @impl true
   def handle_call(:get, _from, [%{connection: conn, call_count: call_count} | tail_connections])
       when call_count + 1 >= @call_limit do
-    {:reply, {:ok, conn}, [%{connection: conn, call_count: call_count + 1} | tail_connections],
-     {:continue, :add_connect}}
+    {:reply, {:ok, conn}, [%{connection: conn, call_count: call_count + 1} | tail_connections], {:continue, :add_connect}}
   end
 
   @impl true

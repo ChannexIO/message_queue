@@ -38,8 +38,7 @@ defmodule MessageQueue.Parsers.ExtBinary do
   end
 
   defp non_executable_terms(other)
-       when is_atom(other) or is_number(other) or is_bitstring(other) or is_pid(other) or
-              is_reference(other) do
+       when is_atom(other) or is_number(other) or is_bitstring(other) or is_pid(other) or is_reference(other) do
     other
   end
 

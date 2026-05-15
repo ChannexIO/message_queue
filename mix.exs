@@ -31,7 +31,8 @@ defmodule MessageQueue.MixProject do
       {:jason, "~> 1.4"},
       {:nimble_options, "~> 0.4 or ~> 1.0"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
+      {:styler, "~> 1.0", only: [:dev, :test], runtime: false}
     ]
   end
 

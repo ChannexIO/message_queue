@@ -26,17 +26,17 @@ defmodule MessageQueue.Utils do
     max_total_time: [
       doc: "Max total retry time in milliseconds",
       type: :non_neg_integer,
-      default: :timer.seconds(60)
+      default: to_timeout(minute: 1)
     ],
     buffer_time: [
       doc: "Final retry must leave this many milliseconds before timeout",
       type: :non_neg_integer,
-      default: :timer.seconds(4)
+      default: to_timeout(second: 4)
     ],
     max_delay: [
       doc: "Maximum delay per retry in milliseconds",
       type: :non_neg_integer,
-      default: :timer.seconds(8)
+      default: to_timeout(second: 8)
     ]
   ]
 

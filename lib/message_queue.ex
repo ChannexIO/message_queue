@@ -48,12 +48,13 @@ defmodule MessageQueue do
     Application.get_env(:message_queue, :connection)
   end
 
-  defp adapter(module) do
+  defp adapter(module), do: Module.concat(adapter_namespace(), module)
+
+  defp adapter_namespace do
     case Application.get_env(:message_queue, :adapter) do
       :rabbitmq -> MessageQueue.Adapters.RabbitMQ
       :sandbox -> MessageQueue.Adapters.Sandbox
       adapter -> adapter
     end
-    |> Module.concat(module)
   end
 end

@@ -3,13 +3,16 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
 
   @behaviour MessageQueue.Adapters.RPCClient
 
-  @reconnect_interval :timer.seconds(10)
-  @call_timeout :timer.seconds(35)
-
   use AMQP
   use GenServer
-  alias MessageQueue.RPCClient.{Request, Response}
+
+  alias MessageQueue.RPCClient.Request
+  alias MessageQueue.RPCClient.Response
+
   require Logger
+
+  @reconnect_interval to_timeout(second: 10)
+  @call_timeout to_timeout(second: 35)
 
   @doc false
   def start_link(_) do
@@ -89,7 +92,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
   def handle_call({:exec, command, opts}, from, state) do
     with {:ok, %{payload: payload, correlation_id: correlation_id}} <-
            Request.prepare_call(command),
-         timeout_ref <- schedule_timeout_error(opts, correlation_id),
+         timeout_ref = schedule_timeout_error(opts, correlation_id),
          :ok <- publish(command, payload, state, correlation_id) do
       {:noreply, %{state | calls: Map.put(state.calls, correlation_id, {from, timeout_ref})}}
     else
@@ -151,7 +154,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.RPCClient do
   # response to the calling process, we schedule timeout error reply that will
   # be sended before the actual timeout
   defp schedule_timeout_error(opts, correlation_id) do
-    timeout = set_timeout(opts) - :timer.seconds(5)
+    timeout = set_timeout(opts) - to_timeout(second: 5)
     timeout = if timeout >= 0, do: timeout, else: 0
 
     __MODULE__

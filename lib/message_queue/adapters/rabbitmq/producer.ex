@@ -1,10 +1,11 @@
 defmodule MessageQueue.Adapters.RabbitMQ.Producer do
   @moduledoc false
 
-  use Supervisor
-
   @behaviour MessageQueue.Adapters.Producer
 
+  use Supervisor
+
+  alias MessageQueue.Adapters.Producer
   alias MessageQueue.Adapters.RabbitMQ.ProcessRegistry
   alias MessageQueue.Adapters.RabbitMQ.ProducerWorker
   alias MessageQueue.Utils
@@ -17,14 +18,14 @@ defmodule MessageQueue.Adapters.RabbitMQ.Producer do
 
   defguardp pos_integer(term) when is_integer(term) and term > 0
 
-  @impl MessageQueue.Adapters.Producer
+  @impl Producer
   def publish(message, queue, options) do
     retry(current_monotonic_time(), options[:message_id], fn ->
       request_worker({:publish, message, queue, options})
     end)
   end
 
-  @impl MessageQueue.Adapters.Producer
+  @impl Producer
   def delete_queue(queue, options) do
     retry(current_monotonic_time(), options[:message_id], fn ->
       request_worker({:delete_queue, queue, options})

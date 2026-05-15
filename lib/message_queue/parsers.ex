@@ -1,7 +1,10 @@
 defmodule MessageQueue.Parsers do
   @moduledoc false
 
-  alias __MODULE__.{CompressedJson, ExtBinary, Json, Raw}
+  alias __MODULE__.CompressedJson
+  alias __MODULE__.ExtBinary
+  alias __MODULE__.Json
+  alias __MODULE__.Raw
 
   @doc false
   def encode(message) do

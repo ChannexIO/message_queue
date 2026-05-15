@@ -1,12 +1,14 @@
 defmodule MessageQueue.Adapters.RabbitMQ.RPCServer do
   @moduledoc false
 
-  @reconnect_interval 10_000
-
   use AMQP
   use GenServer
+
   alias MessageQueue.RPCClient.Command
+
   require Logger
+
+  @reconnect_interval to_timeout(second: 10)
 
   def start_link(_) do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)

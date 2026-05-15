@@ -4,6 +4,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorkerTest do
   alias MessageQueue.Adapters.RabbitMQ.ProducerWorker
 
   defmodule TestBasic do
+    @moduledoc false
     def return(_channel, _pid), do: :ok
 
     def publish(channel, exchange, routing_key, payload, options) do
@@ -13,6 +14,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorkerTest do
   end
 
   defmodule TestConfirm do
+    @moduledoc false
     def select(_channel), do: :ok
 
     def wait_for_confirms(_channel),
@@ -20,6 +22,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorkerTest do
   end
 
   defmodule TestQueue do
+    @moduledoc false
     def delete(_channel, _queue, _options), do: {:ok, %{}}
 
     def declare(channel, queue, options) do
@@ -34,6 +37,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorkerTest do
   end
 
   defmodule TestExchange do
+    @moduledoc false
     def declare(channel, exchange, exchange_type, options) do
       send(self(), {:exchange_declare, channel, exchange, exchange_type, options})
       :ok
@@ -201,8 +205,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorkerTest do
     assert_received {:declare, :test_channel, "queue.two", declare_options_two}
     assert_received {:bind, :test_channel, "queue.two", "amq.fanout", bind_options_two}
 
-    assert_received {:publish, :test_channel, "amq.fanout", ["queue.one", "queue.two"], ^payload,
-                     publish_options}
+    assert_received {:publish, :test_channel, "amq.fanout", ["queue.one", "queue.two"], ^payload, publish_options}
 
     assert declare_options_one[:routing_key] == ["queue.one", "queue.two"]
     assert bind_options_one[:routing_key] == ["queue.one", "queue.two"]
@@ -231,8 +234,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorkerTest do
     assert_received {:bind, :test_channel, "reply.queue", "amq.direct", bind_options}
     assert bind_options[:routing_key] == "reply.queue"
 
-    assert_received {:publish, :test_channel, "amq.direct", "reply.queue", ^payload,
-                     publish_options}
+    assert_received {:publish, :test_channel, "amq.direct", "reply.queue", ^payload, publish_options}
 
     assert publish_options[:routing_key] == "missing.queue"
     assert publish_options[:reply_to] == "reply.queue"

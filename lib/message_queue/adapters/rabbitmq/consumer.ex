@@ -29,11 +29,17 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
 
   defmacro __using__(_opts) do
     quote do
-      @reconnect_interval 10_000
-
-      alias AMQP.{Basic, Channel, Connection, Exchange, Queue}
       use GenServer
+
+      alias AMQP.Basic
+      alias AMQP.Channel
+      alias AMQP.Connection
+      alias AMQP.Exchange
+      alias AMQP.Queue
+
       require Logger
+
+      @reconnect_interval to_timeout(second: 10)
 
       @module_name inspect(__MODULE__)
 
@@ -71,9 +77,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.Consumer do
         end
       catch
         :exit, error ->
-          Logger.error(
-            "[#{@module_name}] RabbitMQ error: #{inspect(error)} Reconnecting later..."
-          )
+          Logger.error("[#{@module_name}] RabbitMQ error: #{inspect(error)} Reconnecting later...")
 
           Process.sleep(@reconnect_interval)
           {:noreply, state, {:continue, :connect}}

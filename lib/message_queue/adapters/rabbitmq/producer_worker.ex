@@ -1,15 +1,15 @@
 defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   @moduledoc false
 
-  @reconnect_interval :timer.seconds(10)
-
   use AMQP
   use GenServer
 
-  require Logger
-
   alias MessageQueue.Adapters.RabbitMQ.ProcessRegistry
   alias MessageQueue.Message
+
+  require Logger
+
+  @reconnect_interval to_timeout(second: 10)
 
   @doc false
   def request(channel, request) do
@@ -174,11 +174,9 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
 
   defp declare_and_bind(channel, exchange, queue, options) do
     with {:ok, %{queue: queue}} <- queue_module().declare(channel, queue, options),
-         routing_key <- Keyword.get(options, :routing_key, queue),
+         routing_key = Keyword.get(options, :routing_key, queue),
          :ok <- bind_queue(channel, queue, exchange, routing_key: routing_key) do
       {:ok, queue}
-    else
-      error -> error
     end
   end
 
@@ -211,8 +209,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
     Keyword.merge(options, get_queue_declare_params(routing_key))
   end
 
-  defp declare_configuration_module,
-    do: Application.get_env(:message_queue, :declare_configuration_module)
+  defp declare_configuration_module, do: Application.get_env(:message_queue, :declare_configuration_module)
 
   defp amqp_modules do
     Application.get_env(:message_queue, :amqp_modules, %{})
