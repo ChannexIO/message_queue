@@ -29,9 +29,9 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   @impl GenServer
   def handle_continue(:connect, state) do
     with {:ok, conn} <- MessageQueue.get_connection(),
-         {:ok, chan} <- Channel.open(conn),
-         :ok <- Basic.return(chan, self()),
-         :ok <- Confirm.select(chan) do
+         {:ok, chan} <- channel_module().open(conn),
+         :ok <- basic_module().return(chan, self()),
+         :ok <- confirm_module().select(chan) do
       ProcessRegistry.register(:producer_workers, chan)
       Process.monitor(conn.pid)
       Process.monitor(chan.pid)
@@ -68,15 +68,21 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   end
 
   defp perform_request(channel, {:delete_queue, queue, options}) do
-    with {:ok, _} <- Queue.delete(channel, queue, options) do
+    with {:ok, _} <- queue_module().delete(channel, queue, options) do
       :ok
     end
   end
 
   defp publish_message(channel, message, exchange, routing_key, options) do
     with {:ok, encoded_message} <- encode_message(message, options),
-         :ok <- Basic.publish(channel, exchange, routing_key, encoded_message, options),
-         {:published, true} <- {:published, Confirm.wait_for_confirms(channel)} do
+         :ok <- publish_encoded_message(channel, encoded_message, exchange, routing_key, options) do
+      :ok
+    end
+  end
+
+  defp publish_encoded_message(channel, payload, exchange, routing_key, options) do
+    with :ok <- basic_module().publish(channel, exchange, routing_key, payload, options),
+         {:published, true} <- {:published, confirm_module().wait_for_confirms(channel)} do
       :ok
     else
       {:published, _} -> {:error, :not_published}
@@ -137,12 +143,15 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
     exchange = options[:exchange]
     exchange_type = get_exchange_type(routing_key, options)
 
-    queue_options = add_queue_declare_params(options, routing_key)
+    queue_options =
+      options
+      |> add_queue_declare_params(routing_key)
+      |> Keyword.put(:routing_key, routing_key)
 
     with :ok <- declare_exchange(channel, exchange, exchange_type, options),
          {:ok, queue} <- declare_and_bind(channel, exchange, routing_key, queue_options),
          :ok <- bind_queue(channel, queue, exchange, routing_key: routing_key) do
-      publish_message(channel, message, exchange, routing_key, options)
+      publish_encoded_message(channel, message, exchange, routing_key, options)
     end
   end
 
@@ -151,12 +160,12 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   defp declare_exchange(_channel, "", _exchange_type, _options), do: :ok
 
   defp declare_exchange(channel, exchange, exchange_type, options) do
-    Exchange.declare(channel, exchange, exchange_type, [{:durable, true} | options])
+    exchange_module().declare(channel, exchange, exchange_type, [{:durable, true} | options])
   end
 
   defp declare_and_bind(channel, exchange, queues, options) when is_list(queues) do
     Enum.reduce_while(queues, {:ok, %{routing_key: ""}}, fn queue, _acc ->
-      case declare_and_bind(exchange, channel, queue, options) do
+      case declare_and_bind(channel, exchange, queue, options) do
         {:ok, _} = result -> {:cont, result}
         error -> {:halt, error}
       end
@@ -164,7 +173,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   end
 
   defp declare_and_bind(channel, exchange, queue, options) do
-    with {:ok, %{queue: queue}} <- Queue.declare(channel, queue, options),
+    with {:ok, %{queue: queue}} <- queue_module().declare(channel, queue, options),
          routing_key <- Keyword.get(options, :routing_key, queue),
          :ok <- bind_queue(channel, queue, exchange, routing_key: routing_key) do
       {:ok, queue}
@@ -178,7 +187,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   defp bind_queue(_channel, _queue, "", _options), do: :ok
 
   defp bind_queue(channel, queue, exchange, options) do
-    Queue.bind(channel, queue, exchange, options)
+    queue_module().bind(channel, queue, exchange, options)
   end
 
   defp encode_message(message, opts) do
@@ -204,4 +213,14 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
 
   defp declare_configuration_module,
     do: Application.get_env(:message_queue, :declare_configuration_module)
+
+  defp amqp_modules do
+    Application.get_env(:message_queue, :amqp_modules, %{})
+  end
+
+  defp channel_module, do: Map.get(amqp_modules(), :channel, Channel)
+  defp basic_module, do: Map.get(amqp_modules(), :basic, Basic)
+  defp confirm_module, do: Map.get(amqp_modules(), :confirm, Confirm)
+  defp queue_module, do: Map.get(amqp_modules(), :queue, Queue)
+  defp exchange_module, do: Map.get(amqp_modules(), :exchange, Exchange)
 end
