@@ -1,7 +1,7 @@
 defmodule MessageQueue.Parsers do
   @moduledoc false
 
-  alias __MODULE__.{CompressedJson, ExtBinary, Json}
+  alias __MODULE__.{CompressedJson, ExtBinary, Json, Raw}
 
   @doc false
   def encode(message) do
@@ -16,5 +16,6 @@ defmodule MessageQueue.Parsers do
   defp get_parser(%{type: :json}), do: Json
   defp get_parser(%{type: :compressed_json}), do: CompressedJson
   defp get_parser(%{type: :ext_binary}), do: ExtBinary
+  defp get_parser(%{type: :raw}), do: Raw
   defp get_parser(%{type: _}), do: CompressedJson
 end

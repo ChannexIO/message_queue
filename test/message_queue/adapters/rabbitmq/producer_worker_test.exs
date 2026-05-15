@@ -78,6 +78,75 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorkerTest do
     assert options[:mandatory] == true
   end
 
+  test "request publish with no message_type defaults to compressed_json" do
+    assert :ok =
+             ProducerWorker.request(:test_channel, {
+               :publish,
+               %{id: 42},
+               "known.queue",
+               []
+             })
+
+    assert_received {:publish, :test_channel, "", "known.queue", payload, _options}
+    assert <<120, 156, _rest::binary>> = payload
+    assert {:ok, %{"id" => 42}} = MessageQueue.decode_data(payload)
+  end
+
+  test "request publish with message_type :compressed_json produces zlib-compressed JSON" do
+    assert :ok =
+             ProducerWorker.request(:test_channel, {
+               :publish,
+               %{id: 42},
+               "known.queue",
+               [message_type: :compressed_json]
+             })
+
+    assert_received {:publish, :test_channel, "", "known.queue", payload, _options}
+    assert <<120, 156, _rest::binary>> = payload
+    assert {:ok, %{"id" => 42}} = MessageQueue.decode_data(payload)
+  end
+
+  test "request publish with message_type :ext_binary produces Erlang binary" do
+    assert :ok =
+             ProducerWorker.request(:test_channel, {
+               :publish,
+               %{id: 42},
+               "known.queue",
+               [message_type: :ext_binary]
+             })
+
+    assert_received {:publish, :test_channel, "", "known.queue", payload, _options}
+    assert <<131, _rest::binary>> = payload
+    assert {:ok, %{id: 42}} = MessageQueue.decode_data(payload)
+  end
+
+  test "request publish with message_type :raw passes the binary through unchanged" do
+    uuid = "550e8400-e29b-41d4-a716-446655440000"
+
+    assert :ok =
+             ProducerWorker.request(:test_channel, {
+               :publish,
+               uuid,
+               "known.queue",
+               [message_type: :raw]
+             })
+
+    assert_received {:publish, :test_channel, "", "known.queue", payload, _options}
+    assert payload == uuid
+  end
+
+  test "request publish with message_type :raw rejects non-binary payloads" do
+    assert {:error, _} =
+             ProducerWorker.request(:test_channel, {
+               :publish,
+               %{id: 42},
+               "known.queue",
+               [message_type: :raw]
+             })
+
+    refute_received {:publish, _, _, _, _, _}
+  end
+
   test "request publish returns error when confirm fails" do
     Application.put_env(:message_queue, :test_confirm_result, false)
 
