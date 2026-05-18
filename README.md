@@ -58,6 +58,30 @@ def handle_message(payload, meta, state) do
 end
 ```
 
+## Development
+
+### Running tests
+
+The test suite mocks all AMQP modules, so no running RabbitMQ is required:
+
+```sh
+mix test --no-start
+```
+
+### Running the benchmark
+
+Requires a RabbitMQ instance (default on `localhost:5672`):
+
+```sh
+mix run --no-start bench/publish_vs_publish_all.exs
+```
+
+Override connection details or batch sizes via env vars:
+
+```sh
+RABBITMQ_HOST=my-host BATCH_SIZES=10,100,1000 mix run --no-start bench/publish_vs_publish_all.exs
+```
+
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
