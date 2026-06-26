@@ -148,7 +148,7 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   end
 
   defp get_exchange("" = _queue, options) do
-    default_type = if match?([_ | _], options[:headers]), do: :headers, else: :direct
+    default_type = if headers?(options), do: :headers, else: :direct
     exchange_type = options[:exchange_type] || default_type
     exchange_name = options[:exchange] || "amq.#{exchange_type}"
     {exchange_name, exchange_type}
@@ -169,14 +169,23 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
     {exchange_name, exchange_type}
   end
 
-  defp get_routing_key("amq.headers", _queue, _options), do: ""
+  defp get_routing_key("amq.headers", _queue, options) do
+    if keep_routing_key?(options), do: Keyword.get(options, :routing_key, ""), else: ""
+  end
 
   defp get_routing_key(_exchange, queues, options) when is_list(queues) do
     Keyword.get(options, :routing_key, "")
   end
 
+  # Headers exchanges route on headers, so the routing key is normally cleared.
+  # Pass `keep_routing_key: true` to preserve it (e.g. to still reach a queue
+  # bound by routing key while also carrying headers).
   defp get_routing_key(_exchange, queue, options) do
-    if match?([_ | _], options[:headers]), do: "", else: Keyword.get(options, :routing_key, queue)
+    if headers?(options) and not keep_routing_key?(options) do
+      ""
+    else
+      Keyword.get(options, :routing_key, queue)
+    end
   end
 
   defp declare_and_publish(channel, message, options) do
@@ -228,6 +237,10 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorker do
   defp bind_queue(channel, queue, exchange, options) do
     queue_module().bind(channel, queue, exchange, options)
   end
+
+  defp headers?(options), do: match?([_ | _], options[:headers])
+
+  defp keep_routing_key?(options), do: options[:keep_routing_key] == true
 
   defp encode_message(message, opts) do
     Message.encode(message,
