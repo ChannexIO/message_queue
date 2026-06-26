@@ -325,6 +325,66 @@ defmodule MessageQueue.Adapters.RabbitMQ.ProducerWorkerTest do
     assert <<131, _rest::binary>> = bin_payload
   end
 
+  test "request publish with headers clears the routing key by default" do
+    assert :ok =
+             ProducerWorker.request(:test_channel, {
+               :publish,
+               %{id: 42},
+               "known.queue",
+               [message_type: :json, headers: [{"x-match", "all"}]]
+             })
+
+    assert_received {:publish, :test_channel, exchange, "", _payload, _options}
+    refute exchange == ""
+  end
+
+  test "request publish with headers and keep_routing_key: true preserves the routing key" do
+    assert :ok =
+             ProducerWorker.request(:test_channel, {
+               :publish,
+               %{id: 42},
+               "known.queue",
+               [message_type: :json, headers: [{"x-match", "all"}], keep_routing_key: true]
+             })
+
+    assert_received {:publish, :test_channel, "", "known.queue", _payload, _options}
+  end
+
+  test "keep_routing_key: true preserves an explicit routing key on the headers exchange" do
+    assert :ok =
+             ProducerWorker.request(:test_channel, {
+               :publish,
+               %{id: 42},
+               "",
+               [
+                 message_type: :json,
+                 exchange: "amq.headers",
+                 headers: [{"x-match", "all"}],
+                 routing_key: "keep.me",
+                 keep_routing_key: true
+               ]
+             })
+
+    assert_received {:publish, :test_channel, "amq.headers", "keep.me", _payload, _options}
+  end
+
+  test "headers exchange clears the routing key without keep_routing_key" do
+    assert :ok =
+             ProducerWorker.request(:test_channel, {
+               :publish,
+               %{id: 42},
+               "",
+               [
+                 message_type: :json,
+                 exchange: "amq.headers",
+                 headers: [{"x-match", "all"}],
+                 routing_key: "ignored"
+               ]
+             })
+
+    assert_received {:publish, :test_channel, "amq.headers", "", _payload, _options}
+  end
+
   defp restore_env(key, nil), do: Application.delete_env(:message_queue, key)
   defp restore_env(key, value), do: Application.put_env(:message_queue, key, value)
 end
